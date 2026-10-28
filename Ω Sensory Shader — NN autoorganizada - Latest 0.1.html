@@ -3,16 +3,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ω Sensory Shader — NN autoorganizada</title>
 <style>
-:root{--bg:#05060b;--fg:#d8def0;--mut:#8a93ad;--pan:rgba(8,10,18,.62);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--bg:#05060b;--fg:#d8def0;--mut:#8a93ad;--pan:rgba(8,10,18,.8);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#05060b;--fg:#d8def0}}
 :root[data-theme="dark"]{--bg:#05060b;--fg:#d8def0}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hud{position:fixed;left:0;right:0;padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;pointer-events:none}
 .top{top:env(safe-area-inset-top,0px)}.bot{bottom:env(safe-area-inset-bottom,0px);flex-direction:column;align-items:stretch;max-width:340px;max-height:calc(100% - 56px);overflow:auto;flex-wrap:nowrap}.bot>*{pointer-events:auto}
-button,label.b,select{pointer-events:auto;background:var(--pan);color:var(--fg);border:1px solid #ffffff22;border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer;backdrop-filter:blur(6px)}
+button,label.b,select{pointer-events:auto;background:var(--pan);color:var(--fg);border:1px solid #ffffff22;border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer;}
 button:hover,label.b:hover{border-color:#ffffff66}
-.pan{background:var(--pan);border-radius:10px;padding:8px 10px;backdrop-filter:blur(6px)}
+.pan{background:var(--pan);border-radius:10px;padding:8px 10px;}
 .row{display:grid;grid-template-columns:92px 1fr 34px;gap:8px;align-items:center;margin:3px 0}
 .bar{height:6px;border-radius:3px;background:#ffffff14;overflow:hidden}.bar i{display:block;height:100%;width:0}
 .mut{color:var(--mut)}
@@ -21,6 +21,7 @@ button:hover,label.b:hover{border-color:#ffffff66}
 .cell{height:24px;border:1px solid #ffffff14;border-radius:4px;font-size:9px;line-height:22px;text-align:center;cursor:ns-resize;user-select:none}
 .ctl{display:flex;gap:8px;align-items:center;margin:5px 0;flex-wrap:wrap}.ctl input[type=range]{width:70px}
 summary{cursor:pointer}
+textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);border:1px solid #ffffff22;border-radius:6px;font:10px ui-monospace,Menlo,monospace;padding:4px;resize:vertical}
 .chat{position:fixed;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));width:min(360px,46vw);z-index:5;pointer-events:auto}
 .cb{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 #log{overflow:auto;display:flex;flex-direction:column;gap:6px;max-height:34vh;min-height:0}
@@ -30,7 +31,7 @@ summary{cursor:pointer}
 .chips{display:flex;gap:4px;flex-wrap:wrap}.chip{font-size:10px;padding:3px 8px;border-radius:10px}
 .chat .in{display:flex;gap:6px;align-items:center}.chat input[type=text]{flex:1;min-width:0;background:#00000055;border:1px solid #ffffff22;border-radius:6px;color:var(--fg);font:inherit;padding:6px 8px}
 .q{max-height:28vh;overflow:auto;pointer-events:auto;display:flex;flex-direction:column;gap:6px}
-.card{background:var(--pan);border:1px solid #ffffff1c;border-radius:10px;padding:7px 9px;cursor:pointer;backdrop-filter:blur(6px);animation:dep .35s ease-out}
+.card{background:var(--pan);border:1px solid #ffffff1c;border-radius:10px;padding:7px 9px;cursor:pointer;;animation:dep .35s ease-out}
 .card.on{border-color:#3ea8ff;box-shadow:0 0 12px #3ea8ff55}.card.done{opacity:.55}
 .card video{width:100%;max-height:64px;border-radius:6px;margin-top:5px;background:#000;display:block}
 .card .bar{margin-top:5px}.card .bar i{background:#3ea8ff}
@@ -55,7 +56,9 @@ summary{cursor:pointer}
 <div class="ctl">onset→descarga <input id="gOn" type="range" min="0" max="4" step=".05" value="2"></div>
 <div class="ctl">sub→cohesión <input id="gCoh" type="range" min="0" max="2" step=".05" value=".5"></div>
 <div class="ctl"><select id="selLOD"><option value="auto">NN LOD: auto</option><option value="0">LOD 0 · bypass</option><option value="1">LOD 1 · predicción</option><option value="2">LOD 2 · + gradiente</option><option value="3">LOD 3 · iterativo ×4</option></select></div>
-<div class="mut" id="nnst"></div></details>
+<div class="mut" id="nnst"></div>
+<div class="ctl"><button id="tSave">Guardar</button><button id="tLoad">Cargar</button><button id="tExp">Exportar</button><label class="b">Importar<input id="tFile" type="file" accept=".json,application/json" hidden></label></div>
+<textarea id="topo" rows="2" placeholder="JSON de la red: queda aquí al exportar; pega uno y pulsa Aplicar"></textarea><div class="ctl"><button id="tTxt">Aplicar texto</button></div></details>
 <div class="pan mut" id="stats"></div></div>
 <details class="pan chat" id="chat" open><summary>NN · código en vivo</summary><div class="cb"><div id="log"></div>
 <div class="chips"><button class="chip" data-q="sube un poco la entropía">+ entropía</button><button class="chip" data-q="pon el LOD en 3">LOD 3</button><button class="chip" data-q="usa entrelazado intercalado">intercalado</button><button class="chip" data-q="¿cuál es el error?">¿error?</button><button class="chip" data-q="ayuda">ayuda</button></div>
@@ -72,7 +75,7 @@ const $=id=>document.getElementById(id),st=$('st'),rnd=Math.random;
 const mEl=$('meters');
 B.forEach((b,i)=>{const col=b.c.map(v=>Math.round(v*255)).join(',');mEl.insertAdjacentHTML('beforeend',`<div class="row" title="${b.role}"><span style="color:rgb(${col})">${b.s} <span class="mut">${b.r}</span></span><div class="bar"><i id="m${i}" style="background:rgb(${col})"></i></div><span class="mut" id="v${i}">0</span></div>`)});
 // ---------- WebGL: fondo (fragment shader) + aristas (LINES) + neuronas (POINTS)
-const cv=$('c'),gl=cv.getContext('webgl',{antialias:false,alpha:false});
+const cv=$('c'),gl=cv.getContext('webgl',{antialias:false,alpha:false,powerPreference:'high-performance'});
 const BC=`vec3 bc(float b){if(b<.5)return vec3(1.,.23,.36);if(b<1.5)return vec3(1.,.62,.11);if(b<2.5)return vec3(.96,.88,.3);if(b<3.5)return vec3(.24,.86,.59);if(b<4.5)return vec3(.24,.66,1.);return vec3(.72,.42,1.);}`;
 function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(o);return o}
 function prog(v,f,at){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,v));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,f));at.forEach((n,i)=>gl.bindAttribLocation(p,i,n));gl.linkProgram(p);
@@ -99,7 +102,7 @@ let ctx=null,sr=48000,curVid=null,cur=-1,G=null,micOn=false,micStop=null,fileSto
 const rs=[0,1,2,3].map(()=>({l:0,b:0})),agc=B.map(()=>({pk:.01,lp:0})),braw=new Float32Array(6),band=new Float32Array(6),aBand=new Float32Array(6);
 const Mx=new Float32Array(36);for(let i=0;i<6;i++)Mx[i*7]=1;
 const pb=new Float32Array(6);let flux=0,fluxRef=.3,effMode=1,lastSw=0,lay=new Int8Array(1);
-const cp=(i,j)=>[.35,1,.1][Math.abs(lay[i]-lay[j])];
+const CPT=new Float32Array([.35,1,.1]),cp=(i,j)=>CPT[Math.abs(lay[i]-lay[j])];
 const LN=['Bloques','Intercalado','Por banda'];
 function setLayers(m){const n=lay.length;for(let i=0;i<n;i++)lay[i]=m===0?Math.min(2,i*3/n|0):m===1?i%3:(i%6)>>1}
 const vc=document.createElement('canvas');vc.width=32;vc.height=18;const vx=vc.getContext('2d',{willReadFrequently:true});let pl=null;
@@ -165,7 +168,7 @@ function nnGuard(dt){if((gcnt+=dt)<1)return;gcnt=0;
  for(let k=0;k<E;k++)if(!(EW[k]===EW[k])){EW[k]=.1;nanHits++}
  for(let k=0;k<6;k++)if(!(braw[k]===braw[k])){braw[k]=0;agc[k].lp=0;agc[k].pk=.01;nanHits++}
 }
-const nnInfo=()=>`NN LOD ${lod}${$('selLOD').value==='auto'?' (auto)':''} · mse ${mse.toExponential(1)} · NaN ${nanHits} · lote ${Math.min(rn,BS)}/${BS} · arena ${ap*4} B · H ${ent.toFixed(2)} · onset ${onEnv.toFixed(2)}`;
+const nnInfo=()=>`NN LOD ${lod}${$('selLOD').value==='auto'?' (auto)':''} · mse ${mse.toExponential(1)} · NaN ${nanHits} · lote ${Math.min(rn,BS)}/${BS} · arena ${ap*4} B · H ${ent.toFixed(2)} · onset ${onEnv.toFixed(2)} · cpu ${(cpuS+cpuD).toFixed(1)} ms (sim ${cpuS.toFixed(1)} · gl ${cpuD.toFixed(1)})`;
 // ---------- Modulación mínima (solo 3): entropía→dispersión · onset→descarga · sub→cohesión
 const rise=new Float32Array(6),onB=new Float32Array(6);let onEnv=0,onMean=.05,ent=.5,subC=0,gEnt=.6,gOn=2,gCoh=.5;
 function ctlStep(dt){
@@ -181,21 +184,21 @@ function ctlStep(dt){
  subC=.5*(band[0]+band[4]);
  if(!(ent===ent))ent=.5;if(!(onEnv===onEnv))onEnv=0;
 }
-const tdA=new Float32Array(1024);
-function rms(a){a.getFloatTimeDomainData(tdA);let s=0;for(let i=0;i<1024;i++)s+=tdA[i]*tdA[i];return Math.sqrt(s/1024)}
+const FFT=512,tdA=new Float32Array(FFT);
+function rms(a){a.getFloatTimeDomainData(tdA);let s=0;for(let i=0;i<FFT;i++)s+=tdA[i]*tdA[i];return Math.sqrt(s/FFT)}
 function sense(dt,t){
  const raw=RAW,live=!!G&&(micOn||!!fileStop);
  if(live){const env=rms(G.aE);for(let i=0;i<4;i++)raw[i]=reson(i,env,dt);raw[4]=rms(G.aG);raw[5]=rms(G.aP)}
  else for(let i=0;i<6;i++)raw[i]=.25+.2*Math.sin(t*(.15+.11*i)+i*1.7);
  for(let i=0;i<6;i++){const g=agc[i];g.pk=Math.max(g.pk*(1-.12*dt),raw[i],i<4?.0006:.004);
-  const v=live?raw[i]/g.pk:raw[i];g.lp+=(v-g.lp)*Math.min(1,dt*(i<2?3:30));braw[i]=Math.min(1,g.lp)}
+  const v=live?raw[i]/g.pk:raw[i];g.lp+=(v-g.lp)*Math.min(1,dt*(i<2?3:i<4?30:50));braw[i]=Math.min(1,g.lp)}
  for(let i=0;i<6;i++){let s=0;for(let j=0;j<6;j++)s+=Mx[i*6+j]*braw[j];band[i]=Math.max(0,Math.min(1,s))}
  fluxStep(dt);nnStep(dt);sonify();
 }
 const EQF=[45,120,300,800,2500,7000];
 function sonify(){if(!G)return;const t=ctx.currentTime,d=+$('gOut').value;let mm=0;
  for(let k=0;k<6;k++)mm+=.5*(aBand[k]+yh[k]);mm/=6;
- for(let k=0;k<6;k++){const m=.5*(aBand[k]+yh[k]);let db=d*24*(m-mm);db=db>12?12:db<-12?-12:db;G.fx[k].gain.setTargetAtTime(eqDb[k]=db===db?db:0,t,.02)}}
+ for(let k=0;k<6;k++){const m=.5*(aBand[k]+yh[k]);let db=d*24*(m-mm);db=db>12?12:db<-12?-12:db;G.fx[k].gain.setTargetAtTime(eqDb[k]=db===db?db:0,t,.012)}}
 function stopFile(){if(fileStop)fileStop();fileStop=null;cur=-1;curVid=null}
 const AC=window.AudioContext||window.webkitAudioContext;
 function selSR(){return +$('selSR').value}
@@ -208,7 +211,7 @@ function ensure(rate){
 function graph(){
  const sum=ctx.createGain(),gm=ctx.createGain(),gf=ctx.createGain();gm.connect(sum);gf.connect(sum);
  gm.gain.value=+$('gMic').value;gf.gain.value=+$('gFile').value;
- const an=n=>{const a=ctx.createAnalyser();a.fftSize=1024;a.smoothingTimeConstant=0;n.connect(a);return a};
+ const an=n=>{const a=ctx.createAnalyser();a.fftSize=FFT;a.smoothingTimeConstant=0;n.connect(a);return a};
  const bp=(f,q)=>{const n=ctx.createBiquadFilter();n.type='bandpass';n.frequency.value=f;n.Q.value=q;sum.connect(n);return n};
  // salida: EQ de 6 bandas (grave→agudo ≈ ω…ε) gobernado por la NN; solo el archivo/demo llega a la salida
  const fxIn=ctx.createGain();let prev=fxIn;
@@ -291,17 +294,17 @@ function play(i){
  st.textContent=`Contenedor: ${it.name} · SR ${(ctx.sampleRate/1000).toFixed(1)} kHz`+(micOn?' + micrófono':'');
 }
 // ---------- Red autoorganizada escalable (arrays tipados + rejilla espacial)
-let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1;
+let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB;
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
 const PROF=[32,128,512,1000,2500,5000,10000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
 function build(n){
  N=n;E=2*n;sp=Math.sqrt(6/N);cnt=null;
- [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);
+ [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);CS=new Float32Array(N);SN=new Float32Array(N);EB=new Uint8Array(E);
  BD=new Uint8Array(N);EI=new Int32Array(E);EJ=new Int32Array(E);cell=new Int32Array(N);ord=new Int32Array(N);lay=new Int8Array(N);
  const cols=Math.ceil(Math.sqrt(N*1.6)),rows=Math.ceil(N/cols);
  for(let i=0;i<N;i++){const c=i%cols,r=(i/cols)|0;X[i]=((c+.5)/cols-.5)*2.6+(rnd()-.5)*sp*.3;Y[i]=((r+.5)/rows-.5)*1.6+(rnd()-.5)*sp*.3;
-  PH[i]=rnd()*6.28;W0[i]=.8+rnd()*.8;A[i]=.2;BD[i]=i%6}
- for(let k=0;k<E;k++){const i=k%N;EI[k]=i;EJ[k]=k<N?(i+1)%N:(i+cols)%N;EW[k]=.3}
+  PH[i]=rnd()*6.28;W0[i]=.8+rnd()*.8;A[i]=.2;BD[i]=i%6;CS[i]=Math.cos(PH[i]);SN[i]=Math.sin(PH[i])}
+ for(let k=0;k<E;k++){const i=k%N;EI[k]=i;EJ[k]=k<N?(i+1)%N:(i+cols)%N;EW[k]=.3;EB[k]=(BD[i]+BD[EJ[k]]+1)>>1}
  setLayers(effMode);
  nA=new Float32Array(N*4);eA=new Float32Array(E*6);const sA=new Float32Array(E*4);
  for(let k=0;k<E;k++){const s=(k*.173)%1;sA.set([0,s,1,s],k*4)}
@@ -313,8 +316,9 @@ function step(dt){
  const asp=cv.width/cv.height,Wd=asp*.92,Hd=.92,b=band,K=.3+5*b[1]+1.5*b[0]+3*gCoh*subC;
  Rc=sp*2.2;
  aBand.fill(0);let cx=0,sx=0;
- for(let i=0;i<N;i++){const bb=b[BD[i]],p=PH[i]+=dt*(W0[i]+K*Rco*Math.sin(psi-PH[i])+bb*5);
-  cx+=Math.cos(p);sx+=Math.sin(p);aBand[BD[i]]+=A[i];A[i]+=(.12+bb*(.55+.45*(.5+.5*Math.sin(p)))-A[i])*Math.min(1,dt*12)+gOn*onB[BD[i]]*dt*14*(1-A[i]*.5);if(A[i]>1.2)A[i]=1.2}
+ const sps=Math.sin(psi),cps=Math.cos(psi);
+ for(let i=0;i<N;i++){const bb=b[BD[i]],p=PH[i]+=dt*(W0[i]+K*Rco*(sps*CS[i]-cps*SN[i])+bb*5),cc=Math.cos(p),ss=Math.sin(p);CS[i]=cc;SN[i]=ss;
+  cx+=cc;sx+=ss;aBand[BD[i]]+=A[i];A[i]+=(.12+bb*(.55+.45*(.5+.5*ss))-A[i])*Math.min(1,dt*12)+gOn*onB[BD[i]]*dt*14*(1-A[i]*.5);if(A[i]>1.2)A[i]=1.2}
  cx/=N;sx/=N;for(let k=0;k<6;k++)aBand[k]/=(N/6);Rco=Math.hypot(cx,sx);psi=Math.atan2(sx,cx);
  // rejilla espacial
  gx=Math.ceil(2*Wd/Rc)+1;gy=Math.ceil(2*Hd/Rc)+1;const nc=gx*gy;
@@ -334,7 +338,7 @@ function step(dt){
     if(d2>=Rc2||d2<1e-9)continue;const d=Math.sqrt(d2),q=1-d/Rc,m=rk*q*q/d;FX[i]+=dx*m;FY[i]+=dy*m;FX[j]-=dx*m;FY[j]-=dy*m}}}}
  // sinapsis: resortes + plasticidad hebbiana (γ), longitud (θ)
  const L=sp*(.35+.5*b[2]),eta=.2+3*b[4];
- for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],dx=X[j]-X[i],dy=Y[j]-Y[i],d=Math.sqrt(dx*dx+dy*dy)+1e-4,cs=.5+.5*Math.cos(PH[i]-PH[j]),w=EW[k];
+ for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],dx=X[j]-X[i],dy=Y[j]-Y[i],d=Math.sqrt(dx*dx+dy*dy)+1e-4,cs=.5+.5*(CS[i]*CS[j]+SN[i]*SN[j]),w=EW[k];
   const f=(d-L)*1.8*(1+gCoh*subC)*w*cs/d;FX[i]+=dx*f;FY[i]+=dy*f;FX[j]-=dx*f;FY[j]-=dy*f;
   EW[k]=Math.max(0,Math.min(1,w+dt*eta*sur[BD[i]]*(A[i]*A[j]*cs*1.6-.35*w*(1+2.5*(1-cp(i,j))))))}
  // integración
@@ -349,11 +353,11 @@ function step(dt){
   for(let t=0;t<8;t++){const nx=cxi+((rnd()*3)|0)-1,ny=cyi+((rnd()*3)|0)-1;if(nx<0||nx>=gx||ny<0||ny>=gy)continue;
    const c2=nx+gx*ny,n=cnt[c2+1]-cnt[c2];if(!n)continue;const j=ord[cnt[c2]+((rnd()*n)|0)];if(j===i)continue;
    const s=A[i]*A[j]+rnd()*.2+cp(i,j)*.9;if(s>bs){bs=s;best=j}}
-  if(best>=0){EI[wk]=i;EJ[wk]=best;EW[wk]=.12}}
+  if(best>=0){EI[wk]=i;EJ[wk]=best;EW[wk]=.12;EB[wk]=(BD[i]+BD[best]+1)>>1}}
 }
 function draw(t){
  for(let i=0;i<N;i++){const o=i*4;nA[o]=X[i];nA[o+1]=Y[i];nA[o+2]=A[i];nA[o+3]=BD[i]}
- for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*Math.round((BD[i]+BD[j])/2);
+ for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*EB[k];
   eA[o]=X[i];eA[o+1]=Y[i];eA[o+2]=uw;eA[o+3]=X[j];eA[o+4]=Y[j];eA[o+5]=uw}
  const R=[cv.width,cv.height];
  gl.disable(gl.BLEND);gl.useProgram(PB.p);gl.uniform2f(PB.uR,R[0],R[1]);gl.uniform1f(PB.uT,t);gl.uniform1f(PB.uCoh,Rco);gl.uniform1fv(PB.uB,band);
@@ -367,6 +371,46 @@ function draw(t){
 }
 $('selP').onchange=()=>{build(+$('selP').value);slow=0;ft=.016};
 build(+$('selP').value);
+// ---------- Topología: guardar / cargar (navegador) · exportar / importar (JSON compacto, validado)
+const b64=u=>{let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
+const enc=ta=>b64(new Uint8Array(ta.buffer,ta.byteOffset,ta.byteLength));
+const dec=(t,T)=>{const s=atob(t),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new T(u.buffer,0,u.length/T.BYTES_PER_ELEMENT)};
+const TCTL=['gEnt','gOn','gCoh','gOut','selL','selLOD'],LS='omega.topology.v1',q8=v=>Math.max(0,Math.min(255,Math.round(v)));
+function topoJSON(){
+ const w8=new Uint8Array(N),ew=new Uint8Array(E),ei=new Uint16Array(E),ej=new Uint16Array(E);
+ for(let i=0;i<N;i++)w8[i]=q8((W0[i]-.8)/.8*255);
+ for(let k=0;k<E;k++){ew[k]=q8(EW[k]*255);ei[k]=EI[k];ej[k]=EJ[k]}
+ const ctl={};TCTL.forEach(id=>ctl[id]=$(id).value);
+ return JSON.stringify({v:1,app:'omega-sensory',N,E,Mx:Array.from(Mx),P:enc(P),X:enc(X),Y:enc(Y),W0:enc(w8),EI:enc(ei),EJ:enc(ej),EW:enc(ew),ctl})}
+function topoLoad(txt){
+ let o;try{o=JSON.parse(txt)}catch(e){throw'JSON inválido'}
+ if(!o||o.app!=='omega-sensory'||o.v!==1)throw'archivo no reconocido';
+ if(!PROF.includes(o.N)||o.E!==2*o.N)throw'perfil no válido';
+ let X2,Y2,w8,ei,ej,ew,P2;
+ try{X2=dec(o.X,Float32Array);Y2=dec(o.Y,Float32Array);w8=dec(o.W0,Uint8Array);ei=dec(o.EI,Uint16Array);ej=dec(o.EJ,Uint16Array);ew=dec(o.EW,Uint8Array);P2=dec(o.P,Float32Array)}catch(e){throw'datos corruptos'}
+ if(X2.length!==o.N||Y2.length!==o.N||w8.length!==o.N||ei.length!==o.E||ej.length!==o.E||ew.length!==o.E||P2.length!==SZ)throw'tamaños inconsistentes';
+ for(let k=0;k<o.E;k++)if(ei[k]>=o.N||ej[k]>=o.N)throw'índice fuera de rango';
+ if(o.N!==N){$('selP').value=String(o.N);build(o.N)}
+ const fin=(v,m)=>Number.isFinite(v)?Math.max(-m,Math.min(m,v)):0;
+ for(let i=0;i<N;i++){X[i]=fin(X2[i],3);Y[i]=fin(Y2[i],3);W0[i]=.8+w8[i]/255*.8;VX[i]=VY[i]=0}
+ for(let k=0;k<E;k++){EI[k]=ei[k];EJ[k]=ej[k];EW[k]=ew[k]/255;EB[k]=(BD[ei[k]]+BD[ej[k]]+1)>>1}
+ for(let k=0;k<SZ;k++)P[k]=fin(P2[k],50);Mo.fill(0);
+ if(Array.isArray(o.Mx)&&o.Mx.length===36){for(let k=0;k<36;k++)Mx[k]=Math.max(-1,Math.min(1,+o.Mx[k]||0));$('mxPre').value='custom';drawMx()}
+ const c=o.ctl||{};for(const id of TCTL){const el=$(id),v=c[id];if(typeof v!=='string')continue;if(!el.options||[...el.options].some(x=>x.value===v))el.value=v}
+ return o.N}
+const kb=s=>(s.length/1024).toFixed(0)+' KB';
+const TOPO={
+ save:async()=>{const j=topoJSON();try{localStorage.setItem(LS,j)}catch(e){throw'el navegador no permite guardar aquí; usa Exportar'}return`saved = "navegador"; size = "${kb(j)}"; neurons = ${N};`},
+ load:async()=>{let j=null;try{j=localStorage.getItem(LS)}catch(e){}if(!j)throw'no hay una red guardada en este navegador';const n=topoLoad(j);return`loaded = "navegador"; neurons = ${n};`},
+ export:async()=>{const j=topoJSON();$('topo').value=j;let how='texto';
+  try{const d=window.claude&&await window.claude.use('downloads');if(d){await d.save({filename:'omega-topologia-'+N+'.json',data:j});how='archivo'}}
+  catch(e){if(e&&e.code==='declined')how='cancelado (queda en el cuadro de texto)'}
+  return`exported = "${how}"; size = "${kb(j)}"; neurons = ${N};`},
+ import:async()=>{$('tFile').click();return'elige un archivo .json';},
+ text:async()=>{const n=topoLoad($('topo').value.trim());return`imported = "texto"; neurons = ${n};`}};
+const tdo=k=>TOPO[k]().then(m=>say('topology { '+m+' }')).catch(e=>say('error { topology: '+(e&&e.message||e)+' }'));
+$('tSave').onclick=()=>tdo('save');$('tLoad').onclick=()=>tdo('load');$('tExp').onclick=()=>tdo('export');$('tTxt').onclick=()=>tdo('text');
+$('tFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const n=topoLoad(await f.text());say(`topology { imported = ${JSON.stringify(f.name)}; neurons = ${n}; }`)}catch(err){say('error { topology: '+(err&&err.message||err)+' }')}};
 // ---------- Chat: la NN escribe código (mini-lenguaje !float/!artifact) a partir de su estado real; también acepta directivas
 const eqDb=new Float32Array(6),chat={q:[],t:0,clock:0,last:{},pl:-1,pe:-1,pc:-2,pn:0,pN:0,pm:false,psr:0,sum:0,boot:false};
 const logEl=$('log');
@@ -435,10 +479,11 @@ const CH=[['layers','bloques','bloques bloque blocks'],['layers','intercalado','
  ['lod','0','bypass'],['lod','1','prediccion predict'],['lod','2','gradiente gradient'],['lod','3','iterativo iterativa iterative']].map(([o,v,w])=>[o,v,W(w)]);
 const QUAL={small:W('poco poquito algo ligeramente slightly bit little'),big:W('mucho bastante considerablemente lot much'),dbl:W('doble duplica duplicar double twice'),
  half:W('mitad half'),max:W('maximo tope max full maximum'),min:W('minimo cero nada min zero'),auto:W('auto automatico automatica automatic')};
+const IO={save:W('guarda guardar save'),load:W('carga cargar load restaura'),export:W('exporta exportar export descarga'),import:W('importa importar import')};
 const NW={cero:0,uno:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,veinte:20,treinta:30,cuarenta:40,cincuenta:50,sesenta:60,setenta:70,ochenta:80,noventa:90,
  cien:100,ciento:100,doscientos:200,doscientas:200,trescientos:300,cuatrocientos:400,quinientos:500,quinientas:500,mil:1000};
 const DEF={entropy:.6,onset:2,cohesion:.5,eq:.7,lod:'auto',layers:'auto',matrix:'id'},SLd={eq:'gOut',entropy:'gEnt',onset:'gOn',cohesion:'gCoh'};
-const LEX=new Set([VERB,OBJ,QONLY,QUAL].flatMap(M=>Object.values(M).flat()).concat(CH.flatMap(c=>c[2])));
+const LEX=new Set([VERB,OBJ,QONLY,QUAL,IO].flatMap(M=>Object.values(M).flat()).concat(CH.flatMap(c=>c[2])));
 const HINT='no entiendo — prueba: "sube un poco la entropía" · "pon el LOD en 2" · "usa entrelazado intercalado" · "¿cuál es el error?"';
 const lev=(a,b)=>{const d=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]};
 const fix=w=>{if(w.length<5||LEX.has(w)||/\d/.test(w))return w;let best=w,bd=9;for(const x of LEX)if(Math.abs(x.length-w.length)<=2){const d=lev(w,x);if(d<bd&&d<=(w.length>=7?2:1)){bd=d;best=x}}return best};
@@ -451,6 +496,7 @@ const norm=s=>s.replace(/(\d),(\d)/g,'$1.$2').toLowerCase().normalize('NFD').rep
  .replace(/\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)\s+y\s+(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)\b/g,'$1 $2').replace(/\b(?!p[1-7]\b)([a-z]+)(\d)/g,'$1 $2').replace(/\s+/g,' ').trim();
 function plan(c){
  const t=c.split(' ').map(fix);let verb=findK(VERB,t),obj=findK(OBJ,t),q=findK(QUAL,t),nm=num(t,c),ch=null,query=null;
+ const io=findK(IO,t);if(io&&!obj)return{trace:`verb = ${io}; object = topology`,io};
  const pm=t.find(w=>/^p[1-7]$/.test(w));if(pm){obj='profile';nm={n:PROF[+pm[1]-1],u:''}}
  for(const [o,v,ws] of CH)if(ws.some(w=>t.includes(w))){ch={o,v};break}
  if(!obj&&(verb==='ask'||!verb)){query=findK(QONLY,t);if(query&&!verb)verb='ask'}
@@ -501,6 +547,7 @@ function answer(k){
 function nl(line){
  const cl=norm(line).split(/\s*(?:,|;|\by\b|\bluego\b|\bdespues\b|\btambien\b|\bademas\b|\band\b|\bthen\b)\s*/).filter(Boolean),out=[];
  for(const c of cl){try{const p=plan(c);out.push(`parse { ${p.trace} }`);
+  if(p.io){tdo(p.io);continue}
   if(p.query){out.push(answer(p.query));continue}
   const ok=[];for(const [k,v] of p.acts){CMD[k](v);ok.push(`${k} = ${v};`)}out.push(`ok { ${ok.join(' ')} }`)}
   catch(e){out.push(`error { "${c}": ${e} }`)}}
@@ -508,16 +555,16 @@ function nl(line){
 document.querySelectorAll('.chip').forEach(b=>{b.onclick=()=>run(b.dataset.q)});
 $('cin').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim()){run(e.target.value);e.target.value=''}});
 if(innerWidth<720)$('chat').open=false;
-let last=performance.now(),T=0,hf=0;
+let cpuS=0,cpuD=0;let last=performance.now(),T=0,hf=0;
 function frame(ts){
  const dt=Math.min(.05,(ts-last)/1000);last=ts;T+=dt;
- sense(dt,T);step(dt);draw(T);nnGuard(dt);chatTick(dt);
+ const t0=performance.now();sense(dt,T);step(dt);const t1=performance.now();draw(T);nnGuard(dt);chatTick(dt);const t2=performance.now();cpuS+=((t1-t0)-cpuS)*.1;cpuD+=((t2-t1)-cpuD)*.1;
  ft+=(dt-ft)*.05;
  if(N>=2500&&ft>.045){if((slow+=dt)>3){const n=PROF[PROF.indexOf(N)-1];$('selP').value=n;build(n);st.textContent='Rendimiento bajo: perfil reducido a '+n+' neuronas';slow=0;ft=.016}}else slow=0;
  if((hf+=dt)>.1){hf=0;for(let i=0;i<6;i++){$('m'+i).style.width=(band[i]*100|0)+'%';$('v'+i).textContent=band[i].toFixed(2)}
   let a=0;for(let k=0;k<E;k++)if(EW[k]>.15)a++;
   if(cur>=0){let dm=0;for(let i=1;i<6;i++)if(band[i]>band[dm])dm=i;setS(Q[cur],'inferencia · dom '+B[dm].s+' · capas '+LN[effMode])}
-  if(ctx){const ol=((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000,wn=512/sr*1000;$('lat').textContent=`latencia est. ≈ ${(ol+wn+ft*1000).toFixed(0)} ms (salida ${ol.toFixed(0)} + ventana ${wn.toFixed(0)} + frame ${(ft*1000).toFixed(0)}) · ${(sr/1000).toFixed(1)} kHz`}
+  if(ctx){const ol=((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000,wn=FFT/2/sr*1000+6.5;$('lat').textContent=`latencia est. ≈ ${(ol+wn+ft*1000).toFixed(0)} ms (salida ${ol.toFixed(0)} + análisis ${wn.toFixed(0)} + frame ${(ft*1000).toFixed(0)}) · ${(sr/1000).toFixed(1)} kHz`}
   $('nnst').textContent=nnInfo();
   $('stats').textContent=`${N} neuronas · sinapsis activas ${a}/${E} · R ${Rco.toFixed(2)} · capas ${LN[effMode]}${$('selL').value==='auto'?' (auto)':''} · flujo ${flux.toFixed(2)} · ${Math.round(1/ft)} fps`}
  requestAnimationFrame(frame);
