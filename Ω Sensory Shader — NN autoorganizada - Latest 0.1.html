@@ -94,10 +94,65 @@ const PP=prog(BC+`attribute vec4 aN;uniform vec2 uR;uniform float uPS;varying ve
 void main(){vC=bc(aN.w);vA=aN.z;gl_Position=vec4(aN.xy/vec2(uR.x/uR.y,1.),0.,1.);gl_PointSize=uPS*(.5+aN.z);}`,
 FH+`varying vec3 vC;varying float vA;uniform float uP;
 void main(){vec2 q=gl_PointCoord*2.-1.;float d=dot(q,q);if(d>1.)discard;float g=exp(-d*3.5);gl_FragColor=vec4((vC*g*1.2+vec3(g*g*g))*vA*uP,1.);}`,['aN']);
+const PF=prog('attribute vec2 a;varying vec2 vUV;void main(){vUV=a*.5+.5;gl_Position=vec4(a,0.,1.);}',
+ FH+`varying vec2 vUV;uniform sampler2D uTex;void main(){vec3 c=texture2D(uTex,vUV).rgb;float l=dot(c,vec3(.2126,.7152,.0722));float m=smoothstep(.42,.95,l);gl_FragColor=vec4(c*m,1.);}`,['a']);
+const PBUR=prog('attribute vec2 a;varying vec2 vUV;void main(){vUV=a*.5+.5;gl_Position=vec4(a,0.,1.);}',
+ FH+`varying vec2 vUV;uniform sampler2D uTex;uniform vec2 uStep;
+void main(){vec3 c=texture2D(uTex,vUV).rgb*.227027;
+ c+=(texture2D(uTex,vUV+uStep*1.384615).rgb+texture2D(uTex,vUV-uStep*1.384615).rgb)*.316216;
+ c+=(texture2D(uTex,vUV+uStep*3.230769).rgb+texture2D(uTex,vUV-uStep*3.230769).rgb)*.070270;
+ gl_FragColor=vec4(c,1.);}`,['a']);
+const PC=prog('attribute vec2 a;varying vec2 vUV;void main(){vUV=a*.5+.5;gl_Position=vec4(a,0.,1.);}',
+ FH+`varying vec2 vUV;uniform sampler2D uScene,uBloom;uniform vec2 uInv;
+float lum(vec3 c){return dot(c,vec3(.299,.587,.114));}
+void main(){vec3 nw=texture2D(uScene,vUV+uInv*vec2(-1.,-1.)).rgb,ne=texture2D(uScene,vUV+uInv*vec2(1.,-1.)).rgb;
+ vec3 sw=texture2D(uScene,vUV+uInv*vec2(-1.,1.)).rgb,se=texture2D(uScene,vUV+uInv*vec2(1.,1.)).rgb,m=texture2D(uScene,vUV).rgb;
+ float lnw=lum(nw),lne=lum(ne),lsw=lum(sw),lse=lum(se),lm=lum(m);
+ vec2 d=vec2(-((lnw+lne)-(lsw+lse)),(lnw+lsw)-(lne+lse));
+ float reduce=max((lnw+lne+lsw+lse)*(.25*.125),1./128.);float inv=1./(min(abs(d.x),abs(d.y))+reduce);
+ d=clamp(d*inv,vec2(-8.),vec2(8.))*uInv;
+ vec3 a=.5*(texture2D(uScene,vUV+d*(1./3.-.5)).rgb+texture2D(uScene,vUV+d*(2./3.-.5)).rgb);
+ vec3 b=a*.5+.25*(texture2D(uScene,vUV+d*-.5).rgb+texture2D(uScene,vUV+d*.5).rgb);
+ float lb=lum(b),lo=min(lm,min(min(lnw,lne),min(lsw,lse))),hi=max(lm,max(max(lnw,lne),max(lsw,lse)));
+ vec3 aa=(lb<lo||lb>hi)?a:b;
+ vec3 glow=texture2D(uBloom,vUV).rgb;
+ gl_FragColor=vec4(aa+glow*.82,1.);}`,['a']);
+PF.uTex=gl.getUniformLocation(PF.p,'uTex');PBUR.uTex=gl.getUniformLocation(PBUR.p,'uTex');PBUR.uStep=gl.getUniformLocation(PBUR.p,'uStep');
+PC.uScene=gl.getUniformLocation(PC.p,'uScene');PC.uBloom=gl.getUniformLocation(PC.p,'uBloom');PC.uInv=gl.getUniformLocation(PC.p,'uInv');
 const bgB=gl.createBuffer(),nB=gl.createBuffer(),lB=gl.createBuffer(),sB=gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-function resize(){const s=Math.min(devicePixelRatio||1,1)*.75;cv.width=Math.max(2,innerWidth*s|0);cv.height=Math.max(2,innerHeight*s|0);gl.viewport(0,0,cv.width,cv.height)}
+const postB=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,postB);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+let sceneT=null,bloomA=null,bloomB=null;
+function target(w,h){
+ const tex=gl.createTexture(),fb=gl.createFramebuffer();
+ gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+ gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+ if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE){gl.deleteTexture(tex);gl.deleteFramebuffer(fb);throw'WebGL framebuffer incompleto'}
+ return{tex,fb,w,h}
+}
+function resize(){
+ const s=Math.min(devicePixelRatio||1,1)*.75;cv.width=Math.max(2,innerWidth*s|0);cv.height=Math.max(2,innerHeight*s|0);
+ for(const r of [sceneT,bloomA,bloomB])if(r){gl.deleteFramebuffer(r.fb);gl.deleteTexture(r.tex)}
+ sceneT=target(cv.width,cv.height);const bw=Math.max(2,cv.width>>1),bh=Math.max(2,cv.height>>1);bloomA=target(bw,bh);bloomB=target(bw,bh);
+ gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height)
+}
 addEventListener('resize',resize);resize();
+function postPass(p,targetOut,w,h){
+ gl.bindFramebuffer(gl.FRAMEBUFFER,targetOut?targetOut.fb:null);gl.viewport(0,0,w,h);gl.disable(gl.BLEND);gl.useProgram(p.p);
+ gl.bindBuffer(gl.ARRAY_BUFFER,postB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0)
+}
+function postDraw(){gl.drawArrays(gl.TRIANGLE_STRIP,0,4)}
+function postprocess(){
+ postPass(PF,bloomA,bloomA.w,bloomA.h);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sceneT.tex);gl.uniform1i(PF.uTex,0);postDraw();
+ postPass(PBUR,bloomB,bloomB.w,bloomB.h);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,bloomA.tex);gl.uniform1i(PBUR.uTex,0);gl.uniform2f(PBUR.uStep,1/bloomA.w,0);postDraw();
+ postPass(PBUR,bloomA,bloomA.w,bloomA.h);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,bloomB.tex);gl.uniform1i(PBUR.uTex,0);gl.uniform2f(PBUR.uStep,0,1/bloomB.h);postDraw();
+ postPass(PC,null,cv.width,cv.height);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sceneT.tex);gl.uniform1i(PC.uScene,0);
+ gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,bloomA.tex);gl.uniform1i(PC.uBloom,1);gl.uniform2f(PC.uInv,1/cv.width,1/cv.height);
+ postDraw();
+ gl.activeTexture(gl.TEXTURE0);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height)
+}
 // ---------- Motor sensory (baja latencia · mic + archivo simultáneos · matriz de bandas)
 let ctx=null,sr=48000,curVid=null,cur=-1,G=null,micOn=false,micStop=null,fileStop=null,sonOn=false;
 const rs=[0,1,2,3].map(()=>({l:0,b:0})),agc=B.map(()=>({pk:.01,lp:0})),braw=new Float32Array(6),band=new Float32Array(6),aBand=new Float32Array(6);
@@ -298,7 +353,7 @@ function play(i){
 let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB,drawCols=1,drawRows=1,avaX,avaY,avaZ,avaW;
 const AVW=16,AVH=12,AVT=6,AVS=AVW*AVH,avaField=new Float32Array(AVS),avaSum=new Float32Array(AVS),avaCount=new Float32Array(AVS);
 const avaTierField=new Float32Array(AVS*AVT),avaTierSum=new Float32Array(AVS*AVT),avaTierCount=new Float32Array(AVS*AVT);
-let avaLookX=0,avaLookY=0,avaLookZ=0,avaAction='idle',avaCandidate='idle',avaCandidateTime=0,avaSenseClock=0;
+let avaLookX=0,avaLookY=0,avaLookZ=0,avaAction='idle',avaCandidate='idle',avaCandidateTime=0,avaSenseClock=0,avaReveal=0,avaMask;
 const AVA_LABEL={run:'run',sit:'sit',walk:'walk',speech:'speech',concentrate:'concentrate',meditate:'meditate',think:'think',observe:'observe',idle:'idle',hear:'hear',sleep:'sleep',point:'señalar'};
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
 const PROF=[32,128,512,1000,2500,5000,10000,25000,50000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
@@ -306,6 +361,7 @@ function build(n){
  N=n;E=2*n;sp=Math.sqrt(6/N);cnt=null;
  drawCols=Math.ceil(Math.sqrt(N*1.6));drawRows=Math.ceil(N/drawCols);
  avaX=new Float32Array(N);avaY=new Float32Array(N);avaZ=new Float32Array(N);avaW=new Float32Array(N);
+ avaMask=new Float32Array(N);
  [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);CS=new Float32Array(N);SN=new Float32Array(N);EB=new Uint8Array(E);
  BD=new Uint8Array(N);EI=new Int32Array(E);EJ=new Int32Array(E);cell=new Int32Array(N);ord=new Int32Array(N);lay=new Int8Array(N);
  const cols=Math.ceil(Math.sqrt(N*1.6)),rows=Math.ceil(N/cols);
@@ -384,9 +440,11 @@ function step(dt){
   if(best>=0){EI[wk]=i;EJ[wk]=best;EW[wk]=.12;EB[wk]=(BD[i]+BD[best]+1)>>1}}
 }
 function draw(t){
+ gl.bindFramebuffer(gl.FRAMEBUFFER,sceneT.fb);gl.viewport(0,0,sceneT.w,sceneT.h);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);
  const vm=+$('selV').value,bandRows=Math.ceil(N/6);
  let ax=t*.31,ay=t*.23;
  if(vm===2){
+  avaReveal=Math.min(1,avaReveal+ft*.3);
   avaSum.fill(0);avaCount.fill(0);avaTierSum.fill(0);avaTierCount.fill(0);
   const asp=cv.width/cv.height,Wd=asp*.92,Hd=.92;
   let total=0,sx=0,sy=0,sz=0,activity=0;
@@ -441,7 +499,6 @@ function draw(t){
   if(avaAction==='point')ay+=avaLookX*.2;
  }
  const az=t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
- const wave=Math.sin(t*1.7);
  for(let i=0;i<N;i++){
   const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
   if(vm===0){
@@ -463,8 +520,24 @@ function draw(t){
    const depthLocal=avaTierField[tk]*(1-tx)*(1-ty)+avaTierField[ix1+AVW*(iy+AVH*tier)]*tx*(1-ty)
     +avaTierField[ix+AVW*(iy1+AVH*tier)]*(1-tx)*ty+avaTierField[ix1+AVW*(iy1+AVH*tier)]*tx*ty;
    const zShift=Math.max(-.2,Math.min(.2,avaLookZ*.2+(depthNext-depthPrev)*.3+(depthLocal-.15)*.08));
-   const x0=avaX[i]+avaX[i]*(.025*a+.018*band[b])+avaX[i]*push;
-   let px=x0,py=avaY[i]+.018*wave*band[b]+(avaY[i]-.08)*push;
+   const depthZ=avaZ[i]+zShift+avaZ[i]*push;
+   const revealEdge=.28-.56*avaReveal;
+   const revealPos=Math.max(0,Math.min(1,(depthZ-revealEdge+.06)/.12));
+   const reveal=revealPos*revealPos*(3-2*revealPos);
+   const noise=Math.sin(avaX[i]*31+t*2.1+b)*Math.sin(avaZ[i]*37-t*1.7+PH[i])*(.003+.006*ent);
+   const flowX=(avaLookX*.035+avaLookZ*.02)*Math.sin(t*.8+PH[i]*.1);
+   const flowZ=(avaLookZ*.055-avaLookX*.025)*Math.cos(t*.7+PH[i]*.1);
+   const travelX=avaLookX*.12,travelZ=avaLookZ*.18;
+   const x0=avaX[i]+avaX[i]*(.025*a+.018*band[b])+avaX[i]*push+noise+flowX+travelX;
+   let px=x0,py=avaY[i];
+   let rippleX=0,rippleZ=0;
+   if(avaAction==='run'||avaAction==='walk'){
+    const dx=avaX[i]-avaLookX*.12,dz=avaZ[i]-avaLookZ*.18,r=Math.sqrt(dx*dx+dz*dz);
+    const ring=Math.sin(r*22-t*(avaAction==='run'?7:4))*Math.exp(-Math.pow((r-(.12+(t%(avaAction==='run'?1.1:1.8))*.12))/.08,2));
+    const strength=ring*(avaAction==='run'?.035:.018);
+    rippleX=strength*dx/(r+.001);rippleZ=strength*dz/(r+.001);
+   }
+   px+=rippleX;
    const u=(i+.5)/N,side=avaX[i]<0?-1:1,limb=Math.sin(t*(avaAction==='run'?10:5)+side*Math.PI);
    if(avaAction==='run'||avaAction==='walk'){
     const motion=avaAction==='run'?.13:.065;
@@ -484,17 +557,19 @@ function draw(t){
    if(avaAction==='sleep')py+=.012*Math.sin(t*1.4);
    if(avaAction==='meditate'||avaAction==='idle'||avaAction==='sit')py+=.012*Math.sin(t*1.8);
    const y0=py;
-   const z0=avaZ[i]+zShift+avaZ[i]*push,w0=avaW[i];
+   const z0=depthZ+noise+flowZ+travelZ+rippleZ,w0=avaW[i];
    const x1=px*cx-w0*sx,w1=px*sx+w0*cx,y1=y0*cy-w1*sy,w2=y0*sy+w1*cy,z1=z0*cz-w2*sz,w3=z0*sz+w2*cz;
    const perspective=1.35/(2.1-w3);
    x=x1*perspective;y=y1*perspective;
    const light=avaAction==='sleep'?.55:avaAction==='concentrate'||avaAction==='speech'?1.25:1;
-   nA[o+2]=Math.min(1.4,(a+.35*field)*light);
+   avaMask[i]=reveal;
+   nA[o+2]=Math.min(1.4,(a+.35*field)*light*reveal);
   }
   nA[o]=x;nA[o+1]=y;if(vm!==2)nA[o+2]=a;nA[o+3]=b;
  }
  for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*EB[k],oi=i*4,oj=j*4;
-  eA[o]=nA[oi];eA[o+1]=nA[oi+1];eA[o+2]=uw;eA[o+3]=nA[oj];eA[o+4]=nA[oj+1];eA[o+5]=uw}
+  const edge=vm===2?2*EB[k]+Math.min(avaMask[i],avaMask[j]):uw;
+  eA[o]=nA[oi];eA[o+1]=nA[oi+1];eA[o+2]=edge;eA[o+3]=nA[oj];eA[o+4]=nA[oj+1];eA[o+5]=edge}
  const R=[cv.width,cv.height];
  gl.disable(gl.BLEND);gl.useProgram(PB.p);gl.uniform2f(PB.uR,R[0],R[1]);gl.uniform1f(PB.uT,t);gl.uniform1f(PB.uCoh,Rco);gl.uniform1fv(PB.uB,band);
  gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,3);
@@ -504,6 +579,7 @@ function draw(t){
  gl.bindBuffer(gl.ARRAY_BUFFER,sB);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.LINES,0,E*2);gl.disableVertexAttribArray(1);
  gl.useProgram(PP.p);gl.uniform2f(PP.uR,R[0],R[1]);gl.uniform1f(PP.uP,1);gl.uniform1f(PP.uPS,Math.max(3,Math.min(36,34*Math.sqrt(32/N)))*R[1]/700);
  gl.bindBuffer(gl.ARRAY_BUFFER,nB);gl.bufferSubData(gl.ARRAY_BUFFER,0,nA);gl.vertexAttribPointer(0,4,gl.FLOAT,false,0,0);gl.drawArrays(gl.POINTS,0,N);
+ postprocess();
 }
 $('selP').onchange=()=>{build(+$('selP').value);slow=0;ft=.016};
 build(+$('selP').value);
