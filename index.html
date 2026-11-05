@@ -43,7 +43,7 @@ textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);b
 <button id="mic">Micrófono</button><label class="b">Archivos<input id="file" type="file" accept="audio/*,video/*" multiple hidden></label><button id="demo">Demo</button>
 <select id="selSR" title="Frecuencia de muestreo"><option value="0">SR auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select>
 <select id="selL" title="Entrelazado de capas"><option value="auto">Capas: auto</option><option value="0">Bloques</option><option value="1">Intercalado</option><option value="2">Por banda</option></select>
-<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar morfológico</option></select>
+<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar 4D morfológico</option></select>
 <select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option><option value="25000">P8 · 25 000</option><option value="50000">P9 · 50 000</option></select>
 <span class="pan mut" id="st">Latente — elige una fuente de audio</span>
 </div>
@@ -295,17 +295,39 @@ function play(i){
  st.textContent=`Contenedor: ${it.name} · SR ${(ctx.sampleRate/1000).toFixed(1)} kHz`+(micOn?' + micrófono':'');
 }
 // ---------- Red autoorganizada escalable (arrays tipados + rejilla espacial)
-let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB,drawCols=1,drawRows=1;
+let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB,drawCols=1,drawRows=1,avaX,avaY,avaZ,avaW;
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
 const PROF=[32,128,512,1000,2500,5000,10000,25000,50000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
 function build(n){
  N=n;E=2*n;sp=Math.sqrt(6/N);cnt=null;
  drawCols=Math.ceil(Math.sqrt(N*1.6));drawRows=Math.ceil(N/drawCols);
+ avaX=new Float32Array(N);avaY=new Float32Array(N);avaZ=new Float32Array(N);avaW=new Float32Array(N);
  [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);CS=new Float32Array(N);SN=new Float32Array(N);EB=new Uint8Array(E);
  BD=new Uint8Array(N);EI=new Int32Array(E);EJ=new Int32Array(E);cell=new Int32Array(N);ord=new Int32Array(N);lay=new Int8Array(N);
  const cols=Math.ceil(Math.sqrt(N*1.6)),rows=Math.ceil(N/cols);
  for(let i=0;i<N;i++){const c=i%cols,r=(i/cols)|0;X[i]=((c+.5)/cols-.5)*2.6+(rnd()-.5)*sp*.3;Y[i]=((r+.5)/rows-.5)*1.6+(rnd()-.5)*sp*.3;
-  PH[i]=rnd()*6.28;W0[i]=.8+rnd()*.8;A[i]=.2;BD[i]=i%6;CS[i]=Math.cos(PH[i]);SN[i]=Math.sin(PH[i])}
+  PH[i]=rnd()*6.28;W0[i]=.8+rnd()*.8;A[i]=.2;BD[i]=i%6;CS[i]=Math.cos(PH[i]);SN[i]=Math.sin(PH[i]);
+  const u=(i+.5)/N,ang=i*2.39996323,cs=Math.cos(ang),ss=Math.sin(ang);
+  if(u<.24){
+   const v=u/.24,lat=Math.PI*v,ring=Math.sin(lat);
+   avaX[i]=.24*ring*cs;avaY[i]=.47+.31*Math.cos(lat);avaZ[i]=.19*ring*ss;
+  }else if(u<.56){
+   const v=(u-.24)/.32,y=.24-.78*v,w=.15+.11*Math.sin(Math.PI*v);
+   avaX[i]=w*cs;avaY[i]=y;avaZ[i]=w*.58*ss;
+  }else if(u<.78){
+   const v=(u-.56)/.22,side=v<.5?-1:1,t=(v% .5)*2;
+   const r=.065*Math.sqrt((i%19)/19),cross=i*1.6180339;
+   avaX[i]=side*(.19+.44*t)+r*Math.cos(cross);
+   avaY[i]=.17-.62*t+r*Math.sin(cross);
+   avaZ[i]=r*Math.sin(cross*1.3);
+  }else{
+   const v=(u-.78)/.22,side=v<.5?-1:1,t=(v% .5)*2;
+   const r=.09*Math.sqrt((i%23)/23),cross=i*1.3247179;
+   avaX[i]=side*(.13+.035*Math.sin(Math.PI*t))+r*Math.cos(cross);
+   avaY[i]=-.48-.58*t+r*Math.sin(cross);
+   avaZ[i]=r*Math.sin(cross*1.2);
+  }
+  avaW[i]=.22*Math.sin(ang*.7)+.18*avaZ[i]}
  for(let k=0;k<E;k++){const i=k%N;EI[k]=i;EJ[k]=k<N?(i+1)%N:(i+cols)%N;EW[k]=.3;EB[k]=(BD[i]+BD[EJ[k]]+1)>>1}
  setLayers(effMode);
  nA=new Float32Array(N*4);eA=new Float32Array(E*6);const sA=new Float32Array(E*4);
@@ -359,6 +381,8 @@ function step(dt){
 }
 function draw(t){
  const vm=+$('selV').value,bandRows=Math.ceil(N/6);
+ const ax=t*.31,ay=t*.23,az=t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
+ const wave=Math.sin(t*1.7);
  for(let i=0;i<N;i++){
   const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
   if(vm===0){
@@ -368,9 +392,10 @@ function draw(t){
    x=((b+.5)/6-.5)*1.72+jitter;
    y=-.82+(r+.5)/bandRows*1.5*(.4+.6*band[b])+.16*a;
   }else{
-   const u=(i+.5)/N,ang=i*2.39996323,r=.72*Math.sqrt(u),sn=Math.sin(ang),cs=Math.cos(ang);
-   const morph=.055*Math.sin(ang*5+t*.8+b)*(.3+band[b])+.08*a;
-   x=(r+morph)*cs*(.78+.22*(sn+1)*.5);y=(r+morph)*sn*.86;
+   const x0=avaX[i]+avaX[i]*(.025*a+.018*band[b]),y0=avaY[i]+.018*wave*band[b],z0=avaZ[i],w0=avaW[i];
+   const x1=x0*cx-w0*sx,w1=x0*sx+w0*cx,y1=y0*cy-w1*sy,w2=y0*sy+w1*cy,z1=z0*cz-w2*sz,w3=z0*sz+w2*cz;
+   const perspective=1.35/(2.1-w3);
+   x=x1*perspective;y=y1*perspective;
   }
   nA[o]=x;nA[o+1]=y;nA[o+2]=a;nA[o+3]=b;
  }

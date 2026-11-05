@@ -14,7 +14,7 @@ An open-source, bare-metal framework designed for real-time Self-Organizing Neur
 
 ### Características Clave
 * **Red autoorganizada escalable:** Perfiles de `P1 (32)` a `P9 (50,000)` neuronas, con reducción automática del perfil si el rendimiento cae.
-* **Tres modos visuales:** rejilla 2.5D, bandas con actividad neuronal y avatar morfológico modulado por el campo de la red.
+* **Tres modos visuales:** rejilla 2.5D, bandas con actividad neuronal y avatar holográfico morfológico animado mediante proyección 4D.
 * **Mecánica Neurobiológica Nativa:** Implementación matemática integrada de **Inhibición Lateral**, sistemas de aprendizaje cooperativo y la cascada de error/energía `ω → ε`.
 * **Procesamiento de Atención Modular (NN LOD):** Niveles de detalle computacional que van desde predicciones y gradientes básicos (LOD 1) hasta optimizaciones iterativas críticas de alta densidad (LOD 3).
 
