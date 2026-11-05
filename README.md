@@ -23,3 +23,6 @@ An open-source, bare-metal framework designed for real-time Self-Organizing Neur
 
 El núcleo del shader emula el comportamiento de una cóclea biológica y redes neuronales *Spiking* de disparo temporal:
 
+## Publicar en GitHub Pages
+
+La aplicación se publica desde `index.html` en la raíz del repositorio. En **Settings → Pages → Build and deployment**, selecciona **Deploy from a branch**, la rama `main` y la carpeta `/(root)`. El archivo fuente original también está disponible como `Ω Sensory Shader — NN autoorganizada - Latest 0.1.html`.
