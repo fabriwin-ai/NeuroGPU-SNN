@@ -12,6 +12,15 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .top{top:env(safe-area-inset-top,0px)}.bot{bottom:env(safe-area-inset-bottom,0px);flex-direction:column;align-items:stretch;max-width:340px;max-height:calc(100% - 56px);overflow:auto;flex-wrap:nowrap}.bot>*{pointer-events:auto}
 button,label.b,select{pointer-events:auto;background:var(--pan);color:var(--fg);border:1px solid #ffffff22;border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer;}
 button:hover,label.b:hover{border-color:#ffffff66}
+.holo-controls{display:none;pointer-events:auto}.holo-controls select{margin:0 6px}
+.holo-controls input[type=range]{width:90px;vertical-align:middle}
+body.holo-mode .holo-controls{display:block}
+body.holo-focus .hud,body.holo-focus .chat{display:none}
+body.holo-focus .top{display:flex}
+body.holo-focus .top>*:not(#holoFS){display:none}
+body:not(.holo-mode) #holoFS{display:none}
+body.holo-focus #holoFS{position:fixed;top:8px;right:8px;opacity:.12}
+body.holo-focus #holoFS:hover{opacity:1}
 .pan{background:var(--pan);border-radius:10px;padding:8px 10px;}
 .row{display:grid;grid-template-columns:92px 1fr 34px;gap:8px;align-items:center;margin:3px 0}
 .bar{height:6px;border-radius:3px;background:#ffffff14;overflow:hidden}.bar i{display:block;height:100%;width:0}
@@ -43,7 +52,9 @@ textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);b
 <button id="mic">Micrófono</button><label class="b">Archivos<input id="file" type="file" accept="audio/*,video/*" multiple hidden></label><button id="demo">Demo</button>
 <select id="selSR" title="Frecuencia de muestreo"><option value="0">SR auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select>
 <select id="selL" title="Entrelazado de capas"><option value="auto">Capas: auto</option><option value="0">Bloques</option><option value="1">Intercalado</option><option value="2">Por banda</option></select>
-<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar texturizado en campo</option></select>
+<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar texturizado en campo</option><option value="3">Holograma: vista central (AVA)</option><option value="4">Holograma: pirámide DIY · 4 caras</option></select>
+<details class="pan holo-controls"><summary>Ajustes de proyección</summary><label>Giro <select id="selHR" title="Giro de proyección"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label> <label>Imagen <select id="holoMirror" title="Orientación de imagen"><option value="0">Normal</option><option value="1">Espejo</option></select></label> <label>Tamaño <input id="holoSize" type="range" min="60" max="130" step="5" value="100"><span id="holoSizeVal">100%</span></label></details>
+<button id="holoFS" title="Alternar pantalla completa">Pantalla completa</button>
 <select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option><option value="25000">P8 · 25 000</option><option value="50000">P9 · 50 000</option></select>
 <span class="pan mut" id="st">Latente — elige una fuente de audio</span>
 </div>
@@ -107,13 +118,11 @@ void main(){vec2 q=gl_PointCoord*2.-1.;float d=dot(q,q);if(d>1.)discard;float g=
  gl_FragColor=vec4(mix(glow,textured,step(.5,uMode))*uP,1.);}`,['aN','aUV']);
 PP.uMode=gl.getUniformLocation(PP.p,'uMode');
 const AV=prog('attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}',
-FH+`uniform vec2 uR,uCenter;uniform float uT,uAct,uScale,uB[6];
+FH+`uniform vec2 uR,uCenter;uniform float uT,uAct,uScale,uSize,uHolo,uLayout,uRotation,uMirror,uB[6];
 float cap(vec2 p,vec2 a,vec2 b,float r){vec2 q=p-a,v=b-a;float h=clamp(dot(q,v)/dot(v,v),0.,1.);return length(q-v*h)-r;}
 float ell(vec2 p,vec2 c,vec2 r){vec2 q=(p-c)/r;return (length(q)-1.)*min(r.x,r.y);}
-void main(){
- vec2 p=(gl_FragCoord.xy-.5*uR)/uR.y*2.-vec2(uCenter.x,0.);p.x/=uScale;
- float walk=(uAct>1.5&&uAct<2.5)?sin(uT*4.5):(uAct>.5&&uAct<1.5)?sin(uT*9.):sin(uT*2.);
- float arm=uAct>2.5&&uAct<3.5?.22:0.,swing=(uAct>.5&&uAct<2.5?walk:0.)*.055;
+float creature(vec2 p,float walk,float arm){
+ float swing=(uAct>.5&&uAct<2.5?walk:0.)*.055;
  float d=ell(p,vec2(0.,.53),vec2(.225,.285));
  d=min(d,cap(p,vec2(0.,.31),vec2(0.,.4),.105));
  d=min(d,ell(p,vec2(0.,-.015),vec2(.245,.425)));
@@ -130,21 +139,49 @@ void main(){
  d=min(d,cap(p,vec2(.15+lx,-.76),vec2(.19+lx,-.855),.066));
  d=min(d,cap(p,vec2(-.19-lx,-.875),vec2(-.045-lx,-.875),.055));
  d=min(d,cap(p,vec2(.045+lx,-.875),vec2(.19+lx,-.875),.055));
- float aa=1.5/uR.y,body=1.-smoothstep(-aa,aa,d);
+ return d;
+}
+vec2 rotate2(vec2 p,float a){float c=cos(a),s=sin(a);return vec2(c*p.x-s*p.y,s*p.x+c*p.y);}
+void main(){
+ vec2 screen=(gl_FragCoord.xy-.5*uR)/uR.y*2.;
+ float walk=(uAct>1.5&&uAct<2.5)?sin(uT*4.5):(uAct>.5&&uAct<1.5)?sin(uT*9.):sin(uT*2.);
+ float arm=uAct>2.5&&uAct<3.5?.22:0.;
+ float aa=1.5/uR.y,best=8.,shadow=0.;vec2 p=vec2(0.);
+ if(uLayout>.5){
+  float aspect=uR.x/uR.y,baseSideX=min(.68,aspect*.38),scale=min(.5,aspect*.64);
+  float sideX=baseSideX;
+  float size=min(uSize,aspect*.98/(sideX+.94*scale));
+  sideX=min(baseSideX,.98-.94*scale*size);
+  aa=1.5/(uR.y*scale*size);
+  for(int i=0;i<4;i++){
+   float angle=uRotation+(i==1?-1.5707963:i==2?3.1415926:i==3?1.5707963:0.);
+   vec2 center=i==0?vec2(0.,.98-.94*scale*size):i==1?vec2(sideX,0.):i==2?vec2(0.,-.98+.94*scale*size):vec2(-sideX,0.);
+   center=rotate2(center,uRotation);
+   vec2 q=rotate2(screen-center,-angle);if(uMirror>.5)q.x=-q.x;q/=scale*size;
+   float d=creature(q,walk,arm);
+   if(d<best){best=d;p=q;}
+   shadow=max(shadow,exp(-pow(q.x/.48,2.)-pow((q.y+.94)/.035,2.))*scale*size);
+  }
+ }else{
+  p=(screen-vec2(uCenter.x,0.))/uSize;if(uMirror>.5)p.x=-p.x;p.x/=uScale;
+  best=creature(p,walk,arm);shadow=exp(-pow(p.x/.48,2.)-pow((p.y+.94)/.035,2.));
+ }
+ float body=1.-smoothstep(-aa,aa,best);
  vec3 c=vec3(.012,.035,.048)+vec3(.025,.11,.14)*(.35+.65*uB[2]);
  float scales=sin(p.x*92.+sin(p.y*36.)*2.)*sin(p.y*116.);
  float weave=1.-smoothstep(.04,.18,abs(fract(p.x*55.+p.y*17.)-.5));
  float nerves=sin(p.x*34.+p.y*21.+uT*.16)*sin(p.y*48.-p.x*13.);
  c*=.84+.1*scales+.12*weave+.09*nerves;
  c+=vec3(.015,.16,.2)*smoothstep(.65,.9,scales)*(.3+uB[4]);
- float edge=1.-smoothstep(.0,.018,abs(d));
+ float edge=1.-smoothstep(.0,.018,abs(best));
  c+=vec3(.08,.38,.48)*edge*(.25+.75*uB[3]);
- float shadow=exp(-pow(p.x/.48,2.)-pow((p.y+.94)/.035,2.));
+ if(uHolo>.5)c=vec3(.025,.22,.3)+vec3(.04,.42,.52)*(.35+.65*uB[3])*(.45+.55*weave)+vec3(.16,.8,1.)*edge;
  float alpha=max(body*.96,shadow*.3);
  gl_FragColor=vec4(c*body+vec3(.015,.09,.13)*shadow,alpha);
 }`,['a']);
 AV.uR=gl.getUniformLocation(AV.p,'uR');AV.uCenter=gl.getUniformLocation(AV.p,'uCenter');
-AV.uT=gl.getUniformLocation(AV.p,'uT');AV.uAct=gl.getUniformLocation(AV.p,'uAct');AV.uScale=gl.getUniformLocation(AV.p,'uScale');AV.uB=gl.getUniformLocation(AV.p,'uB');
+AV.uT=gl.getUniformLocation(AV.p,'uT');AV.uAct=gl.getUniformLocation(AV.p,'uAct');AV.uScale=gl.getUniformLocation(AV.p,'uScale');
+AV.uSize=gl.getUniformLocation(AV.p,'uSize');AV.uHolo=gl.getUniformLocation(AV.p,'uHolo');AV.uLayout=gl.getUniformLocation(AV.p,'uLayout');AV.uRotation=gl.getUniformLocation(AV.p,'uRotation');AV.uMirror=gl.getUniformLocation(AV.p,'uMirror');AV.uB=gl.getUniformLocation(AV.p,'uB');
 const PF=prog('attribute vec2 a;varying vec2 vUV;void main(){vUV=a*.5+.5;gl_Position=vec4(a,0.,1.);}',
  FH+`varying vec2 vUV;uniform sampler2D uTex;void main(){vec3 c=texture2D(uTex,vUV).rgb;float l=dot(c,vec3(.2126,.7152,.0722));float m=smoothstep(.42,.95,l);gl_FragColor=vec4(c*m,1.);}`,['a']);
 const PBUR=prog('attribute vec2 a;varying vec2 vUV;void main(){vUV=a*.5+.5;gl_Position=vec4(a,0.,1.);}',
@@ -492,11 +529,11 @@ function step(dt){
 }
 function draw(t){
  gl.bindFramebuffer(gl.FRAMEBUFFER,sceneT.fb);gl.viewport(0,0,sceneT.w,sceneT.h);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT);
- const vm=+$('selV').value,bandRows=Math.ceil(N/6),aspect=cv.width/cv.height;
- const avx=Math.max(-aspect*.32,Math.min(aspect*.32,avaLookX*.78));
+ const vm=+$('selV').value,avatarView=vm>=2,holoMode=vm>=3,bandRows=Math.ceil(N/6),aspect=cv.width/cv.height;
+ const avx=vm===2?Math.max(-aspect*.32,Math.min(aspect*.32,avaLookX*.78)):0;
  const avScale=Math.min(1,Math.max(.35,(aspect-Math.abs(avx)-.04)/.45));
- let ax=vm===2?0:t*.31,ay=vm===2?0:t*.23;
- if(vm===2){
+ let ax=avatarView?0:t*.31,ay=avatarView?0:t*.23;
+ if(avatarView){
   avaReveal=Math.min(1,avaReveal+ft*.3);
   avaSum.fill(0);avaCount.fill(0);avaTierSum.fill(0);avaTierCount.fill(0);
   const asp=cv.width/cv.height,Wd=asp*.92,Hd=.92;
@@ -548,7 +585,7 @@ function draw(t){
    if(avaCandidateTime>=.5)avaAction=avaCandidate;
   }
  }
- const az=vm===2?0:t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
+ const az=avatarView?0:t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
  for(let i=0;i<N;i++){
   const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
   if(vm===0){
@@ -624,31 +661,50 @@ function draw(t){
   const edge=vm===2?2*EB[k]+Math.min(avaMask[i],avaMask[j]):uw;
   eA[o]=nA[oi];eA[o+1]=nA[oi+1];eA[o+2]=edge;eA[o+3]=nA[oj];eA[o+4]=nA[oj+1];eA[o+5]=edge}
  const R=[cv.width,cv.height];
- gl.disable(gl.BLEND);gl.useProgram(PB.p);gl.uniform2f(PB.uR,R[0],R[1]);gl.uniform1f(PB.uT,t);gl.uniform1f(PB.uCoh,Rco);gl.uniform1fv(PB.uB,band);
- gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,3);
- if(vm===2){
+ if(!holoMode){
+  gl.disable(gl.BLEND);gl.useProgram(PB.p);gl.uniform2f(PB.uR,R[0],R[1]);gl.uniform1f(PB.uT,t);gl.uniform1f(PB.uCoh,Rco);gl.uniform1fv(PB.uB,band);
+  gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,3);
+ }
+ if(avatarView){
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.useProgram(AV.p);
   gl.uniform2f(AV.uR,R[0],R[1]);gl.uniform2f(AV.uCenter,avx,0);gl.uniform1f(AV.uT,t);
   const pose=avaAction==='run'?1:avaAction==='walk'?2:avaAction==='point'?3:avaAction==='speech'?4:0;
-  gl.uniform1f(AV.uAct,pose);gl.uniform1f(AV.uScale,avScale);gl.uniform1fv(AV.uB,band);
+  gl.uniform1f(AV.uAct,pose);gl.uniform1f(AV.uScale,avScale);gl.uniform1f(AV.uSize,+$('holoSize').value/100);
+  gl.uniform1f(AV.uHolo,holoMode?1:0);gl.uniform1f(AV.uLayout,vm===4?1:0);
+  gl.uniform1f(AV.uRotation,+$('selHR').value*Math.PI/2);gl.uniform1f(AV.uMirror,+$('holoMirror').value);
+  gl.uniform1fv(AV.uB,band);
   gl.bindBuffer(gl.ARRAY_BUFFER,postB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
  }
  gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);
- gl.useProgram(PL.p);gl.uniform2f(PL.uR,R[0],R[1]);gl.uniform1f(PL.uT,t);gl.uniform1f(PL.uGain,.6+1.4*band[3]);gl.uniform1f(PL.uK,N>1000?.6:1);gl.uniform1f(PL.uB3,band[3]);
- gl.bindBuffer(gl.ARRAY_BUFFER,lB);gl.bufferSubData(gl.ARRAY_BUFFER,0,eA);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
- gl.bindBuffer(gl.ARRAY_BUFFER,sB);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.LINES,0,E*2);gl.disableVertexAttribArray(1);
- gl.useProgram(PP.p);gl.uniform2f(PP.uR,R[0],R[1]);gl.uniform1f(PP.uP,1);gl.uniform1f(PP.uPS,Math.max(3,Math.min(36,34*Math.sqrt(32/N)))*R[1]/700);
- gl.bindBuffer(gl.ARRAY_BUFFER,nB);gl.bufferSubData(gl.ARRAY_BUFFER,0,nA);gl.uniform1f(PP.uMode,vm===2?1:0);
- gl.vertexAttribPointer(0,4,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,24,16);gl.drawArrays(gl.POINTS,0,N);gl.disableVertexAttribArray(1);
+ if(!holoMode){
+  gl.useProgram(PL.p);gl.uniform2f(PL.uR,R[0],R[1]);gl.uniform1f(PL.uT,t);gl.uniform1f(PL.uGain,.6+1.4*band[3]);gl.uniform1f(PL.uK,N>1000?.6:1);gl.uniform1f(PL.uB3,band[3]);
+  gl.bindBuffer(gl.ARRAY_BUFFER,lB);gl.bufferSubData(gl.ARRAY_BUFFER,0,eA);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,sB);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.LINES,0,E*2);gl.disableVertexAttribArray(1);
+  gl.useProgram(PP.p);gl.uniform2f(PP.uR,R[0],R[1]);gl.uniform1f(PP.uP,1);gl.uniform1f(PP.uPS,Math.max(3,Math.min(36,34*Math.sqrt(32/N)))*R[1]/700);
+  gl.bindBuffer(gl.ARRAY_BUFFER,nB);gl.bufferSubData(gl.ARRAY_BUFFER,0,nA);gl.uniform1f(PP.uMode,avatarView?1:0);
+  gl.vertexAttribPointer(0,4,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,24,16);gl.drawArrays(gl.POINTS,0,N);gl.disableVertexAttribArray(1);
+ }
  postprocess();
 }
 $('selP').onchange=()=>{build(+$('selP').value);slow=0;ft=.016};
+function syncHoloControls(){document.body.classList.toggle('holo-mode',+$('selV').value>=3)}
+$('selV').addEventListener('change',syncHoloControls);syncHoloControls();
+$('holoSize').oninput=()=>{$('holoSizeVal').textContent=$('holoSize').value+'%'};
+$('holoFS').onclick=()=>{
+ if(document.fullscreenElement){document.exitFullscreen().catch(e=>{st.textContent='No se pudo salir de pantalla completa: '+e.message});return}
+ if(!document.documentElement.requestFullscreen){st.textContent='Pantalla completa no es compatible con este navegador';return}
+ document.documentElement.requestFullscreen().catch(e=>{st.textContent='Pantalla completa no disponible: '+e.message});
+};
+document.addEventListener('fullscreenchange',()=>{
+ const active=!!document.fullscreenElement;document.body.classList.toggle('holo-focus',active);
+ $('holoFS').textContent=active?'Salir de pantalla completa':'Pantalla completa';
+});
 build(+$('selP').value);
 // ---------- Topología: guardar / cargar (navegador) · exportar / importar (JSON compacto, validado)
 const b64=u=>{let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
 const enc=ta=>b64(new Uint8Array(ta.buffer,ta.byteOffset,ta.byteLength));
 const dec=(t,T)=>{const s=atob(t),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new T(u.buffer,0,u.length/T.BYTES_PER_ELEMENT)};
-const TCTL=['gEnt','gOn','gCoh','gOut','selL','selLOD','selV'],LS='omega.topology.v1',q8=v=>Math.max(0,Math.min(255,Math.round(v)));
+const TCTL=['gEnt','gOn','gCoh','gOut','selL','selLOD','selV','selHR','holoMirror','holoSize'],LS='omega.topology.v1',q8=v=>Math.max(0,Math.min(255,Math.round(v)));
 function topoJSON(){
  const w8=new Uint8Array(N),ew=new Uint8Array(E),ei=new Uint16Array(E),ej=new Uint16Array(E);
  for(let i=0;i<N;i++)w8[i]=q8((W0[i]-.8)/.8*255);
@@ -670,6 +726,7 @@ function topoLoad(txt){
  for(let k=0;k<SZ;k++)P[k]=fin(P2[k],50);Mo.fill(0);
  if(Array.isArray(o.Mx)&&o.Mx.length===36){for(let k=0;k<36;k++)Mx[k]=Math.max(-1,Math.min(1,+o.Mx[k]||0));$('mxPre').value='custom';drawMx()}
  const c=o.ctl||{};for(const id of TCTL){const el=$(id),v=c[id];if(typeof v!=='string')continue;if(!el.options||[...el.options].some(x=>x.value===v))el.value=v}
+ syncHoloControls();$('holoSizeVal').textContent=$('holoSize').value+'%';
  return o.N}
 const kb=s=>(s.length/1024).toFixed(0)+' KB';
 const TOPO={
@@ -839,7 +896,7 @@ function frame(ts){
   if(cur>=0){let dm=0;for(let i=1;i<6;i++)if(band[i]>band[dm])dm=i;setS(Q[cur],'inferencia · dom '+B[dm].s+' · capas '+LN[effMode])}
   if(ctx){const ol=((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000,wn=FFT/2/sr*1000+6.5;$('lat').textContent=`latencia est. ≈ ${(ol+wn+ft*1000).toFixed(0)} ms (salida ${ol.toFixed(0)} + análisis ${wn.toFixed(0)} + frame ${(ft*1000).toFixed(0)}) · ${(sr/1000).toFixed(1)} kHz`}
   $('nnst').textContent=nnInfo();
-  $('stats').textContent=`${N} neuronas · sinapsis activas ${a}/${E} · R ${Rco.toFixed(2)} · capas ${LN[effMode]}${$('selL').value==='auto'?' (auto)':''} · flujo ${flux.toFixed(2)} · ${Math.round(1/ft)} fps${+$('selV').value===2?' · avatar '+AVA_LABEL[avaAction]:''}`}
+  $('stats').textContent=`${N} neuronas · sinapsis activas ${a}/${E} · R ${Rco.toFixed(2)} · capas ${LN[effMode]}${$('selL').value==='auto'?' (auto)':''} · flujo ${flux.toFixed(2)} · ${Math.round(1/ft)} fps${+$('selV').value>=2?' · avatar '+AVA_LABEL[avaAction]:''}`}
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
