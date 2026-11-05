@@ -296,6 +296,10 @@ function play(i){
 }
 // ---------- Red autoorganizada escalable (arrays tipados + rejilla espacial)
 let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB,drawCols=1,drawRows=1,avaX,avaY,avaZ,avaW;
+const AVW=16,AVH=12,AVT=6,AVS=AVW*AVH,avaField=new Float32Array(AVS),avaSum=new Float32Array(AVS),avaCount=new Float32Array(AVS);
+const avaTierField=new Float32Array(AVS*AVT),avaTierSum=new Float32Array(AVS*AVT),avaTierCount=new Float32Array(AVS*AVT);
+let avaLookX=0,avaLookY=0,avaLookZ=0,avaAction='idle',avaCandidate='idle',avaCandidateTime=0,avaSenseClock=0;
+const AVA_LABEL={run:'run',sit:'sit',walk:'walk',speech:'speech',concentrate:'concentrate',meditate:'meditate',think:'think',observe:'observe',idle:'idle',hear:'hear',sleep:'sleep',point:'señalar'};
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
 const PROF=[32,128,512,1000,2500,5000,10000,25000,50000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
 function build(n){
@@ -381,7 +385,62 @@ function step(dt){
 }
 function draw(t){
  const vm=+$('selV').value,bandRows=Math.ceil(N/6);
- const ax=t*.31,ay=t*.23,az=t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
+ let ax=t*.31,ay=t*.23;
+ if(vm===2){
+  avaSum.fill(0);avaCount.fill(0);avaTierSum.fill(0);avaTierCount.fill(0);
+  const asp=cv.width/cv.height,Wd=asp*.92,Hd=.92;
+  let total=0,sx=0,sy=0,sz=0,activity=0;
+  for(let i=0;i<N;i++){
+   const gx=Math.min(AVW-1,Math.max(0,((X[i]/Wd*.5+.5)*AVW)|0));
+   const gy=Math.min(AVH-1,Math.max(0,((Y[i]/Hd*.5+.5)*AVH)|0)),k=gx+AVW*gy,b=BD[i];
+   const w=A[i]*(.2+.8*band[b])*(.5+.5*CS[i]);
+   avaSum[k]+=w;avaCount[k]++;
+   const tier=Math.min(AVT-1,Math.max(0,b+lay[i]-1)),tk=k+AVS*tier;
+   avaTierSum[tk]+=w;avaTierCount[tk]++;
+   total+=w;sx+=X[i]*w;sy+=Y[i]*w;sz+=((tier/(AVT-1))-.5)*w;activity+=A[i];
+  }
+  const smooth=Math.min(1,ft*8);
+  for(let k=0;k<AVS;k++){
+   const density=Math.min(1,avaCount[k]/(N/avaField.length*1.5));
+   const target=avaCount[k]?Math.min(1,avaSum[k]/avaCount[k]*1.7)*density:0;
+   avaField[k]+=(target-avaField[k])*smooth;
+  }
+  for(let k=0;k<avaTierField.length;k++){
+   const density=Math.min(1,avaTierCount[k]/(N/avaTierField.length*1.5));
+   const target=avaTierCount[k]?Math.min(1,avaTierSum[k]/avaTierCount[k]*1.7)*density:0;
+   avaTierField[k]+=(target-avaTierField[k])*smooth;
+  }
+  if(total>1e-6){
+   avaLookX+=(Math.max(-1,Math.min(1,sx/total/Wd))* .5-avaLookX)*smooth;
+   avaLookY+=(Math.max(-1,Math.min(1,sy/total/Hd))* .5-avaLookY)*smooth;
+   avaLookZ+=(Math.max(-.5,Math.min(.5,sz/total))*.5-avaLookZ)*smooth;
+  }
+  avaSenseClock+=ft;
+  if(avaSenseClock>=.25){
+   avaSenseClock=0;
+   const active=activity/N,live=micOn||!!fileStop,spatial=Math.abs(avaLookX)+Math.abs(avaLookY);
+   let next='idle';
+   if(live&&onEnv>.48&&band[3]+band[4]>.48)next='speech';
+   else if(live&&onEnv>.32&&band[3]+band[4]>.32)next='run';
+   else if(live&&band[0]+band[1]+band[2]+band[3]+band[4]+band[5]>.2)next='hear';
+   else if(active<.2)next='sleep';
+   else if(ent<.24&&Rco>.62&&onEnv<.12)next='meditate';
+   else if(onEnv>.34)next='run';
+   else if(onEnv>.13)next='walk';
+   else if(spatial>.24&&active>.24)next='point';
+   else if(Rco>.58&&band[3]>.2)next='concentrate';
+   else if(band[2]>.22&&band[3]>.18)next='think';
+   else if(band[4]>.2)next='observe';
+   else if(active<.34)next='sit';
+   if(next===avaCandidate)avaCandidateTime+=.25;
+   else{avaCandidate=next;avaCandidateTime=0}
+   if(avaCandidateTime>=.5)avaAction=avaCandidate;
+  }
+  ax+=avaLookY*.16;ay+=avaLookX*.3;
+  if(avaAction==='sleep')ax+=.12;
+  if(avaAction==='point')ay+=avaLookX*.2;
+ }
+ const az=t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
  const wave=Math.sin(t*1.7);
  for(let i=0;i<N;i++){
   const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
@@ -392,12 +451,47 @@ function draw(t){
    x=((b+.5)/6-.5)*1.72+jitter;
    y=-.82+(r+.5)/bandRows*1.5*(.4+.6*band[b])+.16*a;
   }else{
-   const x0=avaX[i]+avaX[i]*(.025*a+.018*band[b]),y0=avaY[i]+.018*wave*band[b],z0=avaZ[i],w0=avaW[i];
-   const x1=x0*cx-w0*sx,w1=x0*sx+w0*cx,y1=y0*cy-w1*sy,w2=y0*sy+w1*cy,z1=z0*cz-w2*sz,w3=z0*sz+w2*cz;
+   const fx=Math.max(0,Math.min(AVW-1,(avaX[i]/.7*.5+.5)*(AVW-1))),fy=Math.max(0,Math.min(AVH-1,(avaY[i]/1.8+.5)*(AVH-1)));
+   const ix=fx|0,iy=fy|0,ix1=Math.min(AVW-1,ix+1),iy1=Math.min(AVH-1,iy+1),tx=fx-ix,ty=fy-iy;
+   const f0=avaField[ix+AVW*iy]*(1-tx)+avaField[ix1+AVW*iy]*tx;
+   const f1=avaField[ix+AVW*iy1]*(1-tx)+avaField[ix1+AVW*iy1]*tx;
+   const field=f0*(1-ty)+f1*ty,push=.2*field+.035*a;
+   const tier=Math.min(AVT-1,b+lay[i]-1),tk=ix+AVW*(iy+AVH*tier);
+   const prev=Math.max(0,tier-1),next=Math.min(AVT-1,tier+1);
+   const depthPrev=avaTierField[ix+AVW*(iy+AVH*prev)]*(1-tx)+avaTierField[ix1+AVW*(iy+AVH*prev)]*tx;
+   const depthNext=avaTierField[ix+AVW*(iy+AVH*next)]*(1-tx)+avaTierField[ix1+AVW*(iy+AVH*next)]*tx;
+   const depthLocal=avaTierField[tk]*(1-tx)*(1-ty)+avaTierField[ix1+AVW*(iy+AVH*tier)]*tx*(1-ty)
+    +avaTierField[ix+AVW*(iy1+AVH*tier)]*(1-tx)*ty+avaTierField[ix1+AVW*(iy1+AVH*tier)]*tx*ty;
+   const zShift=Math.max(-.2,Math.min(.2,avaLookZ*.2+(depthNext-depthPrev)*.3+(depthLocal-.15)*.08));
+   const x0=avaX[i]+avaX[i]*(.025*a+.018*band[b])+avaX[i]*push;
+   let px=x0,py=avaY[i]+.018*wave*band[b]+(avaY[i]-.08)*push;
+   const u=(i+.5)/N,side=avaX[i]<0?-1:1,limb=Math.sin(t*(avaAction==='run'?10:5)+side*Math.PI);
+   if(avaAction==='run'||avaAction==='walk'){
+    const motion=avaAction==='run'?.13:.065;
+    if(u>=.56&&u<.78){px+=side*limb*motion;py+=Math.abs(limb)*motion*.55}
+    else if(u>=.78){px+=side*limb*motion;py-=Math.abs(limb)*motion*.45}
+   }else if(avaAction==='point'&&u>=.56&&u<.78&&side>0){
+    const reach=Math.max(0,Math.min(1,(Math.abs(avaX[i])-.19)/.44));px+=.08*reach;py+=.34*reach;
+   }else if(avaAction==='sit'){
+    if(u>=.24&&u<.56)py-=.07;
+    else if(u>=.78)py+=.06*Math.max(0,(avaY[i]+1)/.6);
+   }else if(avaAction==='speech'&&u<.24){
+    py+=.018*Math.sin(t*10)*Math.max(0,1-Math.abs(avaY[i]-.43)*12);
+   }else if(avaAction==='concentrate'||avaAction==='think'||avaAction==='observe'){
+    if(u<.24)px+=avaLookX*.055;
+    if(avaAction==='think'&&u<.24)py+=.015*Math.sin(t*1.8);
+   }
+   if(avaAction==='sleep')py+=.012*Math.sin(t*1.4);
+   if(avaAction==='meditate'||avaAction==='idle'||avaAction==='sit')py+=.012*Math.sin(t*1.8);
+   const y0=py;
+   const z0=avaZ[i]+zShift+avaZ[i]*push,w0=avaW[i];
+   const x1=px*cx-w0*sx,w1=px*sx+w0*cx,y1=y0*cy-w1*sy,w2=y0*sy+w1*cy,z1=z0*cz-w2*sz,w3=z0*sz+w2*cz;
    const perspective=1.35/(2.1-w3);
    x=x1*perspective;y=y1*perspective;
+   const light=avaAction==='sleep'?.55:avaAction==='concentrate'||avaAction==='speech'?1.25:1;
+   nA[o+2]=Math.min(1.4,(a+.35*field)*light);
   }
-  nA[o]=x;nA[o+1]=y;nA[o+2]=a;nA[o+3]=b;
+  nA[o]=x;nA[o+1]=y;if(vm!==2)nA[o+2]=a;nA[o+3]=b;
  }
  for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*EB[k],oi=i*4,oj=j*4;
   eA[o]=nA[oi];eA[o+1]=nA[oi+1];eA[o+2]=uw;eA[o+3]=nA[oj];eA[o+4]=nA[oj+1];eA[o+5]=uw}
@@ -608,7 +702,7 @@ function frame(ts){
   if(cur>=0){let dm=0;for(let i=1;i<6;i++)if(band[i]>band[dm])dm=i;setS(Q[cur],'inferencia · dom '+B[dm].s+' · capas '+LN[effMode])}
   if(ctx){const ol=((ctx.baseLatency||0)+(ctx.outputLatency||0))*1000,wn=FFT/2/sr*1000+6.5;$('lat').textContent=`latencia est. ≈ ${(ol+wn+ft*1000).toFixed(0)} ms (salida ${ol.toFixed(0)} + análisis ${wn.toFixed(0)} + frame ${(ft*1000).toFixed(0)}) · ${(sr/1000).toFixed(1)} kHz`}
   $('nnst').textContent=nnInfo();
-  $('stats').textContent=`${N} neuronas · sinapsis activas ${a}/${E} · R ${Rco.toFixed(2)} · capas ${LN[effMode]}${$('selL').value==='auto'?' (auto)':''} · flujo ${flux.toFixed(2)} · ${Math.round(1/ft)} fps`}
+  $('stats').textContent=`${N} neuronas · sinapsis activas ${a}/${E} · R ${Rco.toFixed(2)} · capas ${LN[effMode]}${$('selL').value==='auto'?' (auto)':''} · flujo ${flux.toFixed(2)} · ${Math.round(1/ft)} fps${+$('selV').value===2?' · avatar '+AVA_LABEL[avaAction]:''}`}
  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
