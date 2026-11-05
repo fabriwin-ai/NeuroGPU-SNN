@@ -52,7 +52,7 @@ textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);b
 <button id="mic">Micrófono</button><label class="b">Archivos<input id="file" type="file" accept="audio/*,video/*" multiple hidden></label><button id="demo">Demo</button>
 <select id="selSR" title="Frecuencia de muestreo"><option value="0">SR auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select>
 <select id="selL" title="Entrelazado de capas"><option value="auto">Capas: auto</option><option value="0">Bloques</option><option value="1">Intercalado</option><option value="2">Por banda</option></select>
-<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar texturizado en campo</option><option value="3">Holograma: vista central (AVA)</option><option value="4">Holograma: pirámide DIY · 4 caras</option></select>
+<select id="selV" title="Modo visual"><option value="0">Vista: rejilla cúbica 3D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar texturizado en campo</option><option value="3">Holograma: vista central (AVA)</option><option value="4">Holograma: pirámide DIY · 4 caras</option></select>
 <details class="pan holo-controls"><summary>Ajustes de proyección</summary><label>Giro <select id="selHR" title="Giro de proyección"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label> <label>Imagen <select id="holoMirror" title="Orientación de imagen"><option value="0">Normal</option><option value="1">Espejo</option></select></label> <label>Tamaño <input id="holoSize" type="range" min="60" max="130" step="5" value="100"><span id="holoSizeVal">100%</span></label></details>
 <button id="holoFS" title="Alternar pantalla completa">Pantalla completa</button>
 <select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option><option value="25000">P8 · 25 000</option><option value="50000">P9 · 50 000</option></select>
@@ -207,9 +207,17 @@ void main(){vec3 nw=texture2D(uScene,vUV+uInv*vec2(-1.,-1.)).rgb,ne=texture2D(uS
  gl_FragColor=vec4(aa+glow*.82,1.);}`,['a']);
 PF.uTex=gl.getUniformLocation(PF.p,'uTex');PBUR.uTex=gl.getUniformLocation(PBUR.p,'uTex');PBUR.uStep=gl.getUniformLocation(PBUR.p,'uStep');
 PC.uScene=gl.getUniformLocation(PC.p,'uScene');PC.uBloom=gl.getUniformLocation(PC.p,'uBloom');PC.uInv=gl.getUniformLocation(PC.p,'uInv');
-const bgB=gl.createBuffer(),nB=gl.createBuffer(),lB=gl.createBuffer(),sB=gl.createBuffer();
+const bgB=gl.createBuffer(),nB=gl.createBuffer(),lB=gl.createBuffer(),sB=gl.createBuffer(),cubeB=gl.createBuffer(),cubeSB=gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
 const postB=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,postB);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const cubeWire=new Float32Array(24*3),cubeWireS=new Float32Array(24*2),cubeEdges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+for(let i=0;i<24;i++){cubeWireS[i*2]=i/24;cubeWireS[i*2+1]=.5}
+gl.bindBuffer(gl.ARRAY_BUFFER,cubeB);gl.bufferData(gl.ARRAY_BUFFER,cubeWire.byteLength,gl.DYNAMIC_DRAW);
+gl.bindBuffer(gl.ARRAY_BUFFER,cubeSB);gl.bufferData(gl.ARRAY_BUFFER,cubeWireS,gl.STATIC_DRAW);
+function projectCubePoint(x,y,z,cy,sy,cx,sx,scale,aspect,out,o){
+ const xr=x*cy+z*sy,zr=-x*sy+z*cy,yr=y*cx-zr*sx,zd=y*sx+zr*cx,p=1.8/(2.6-zd);
+ out[o]=xr*p*scale*aspect;out[o+1]=yr*p*scale;
+}
 let sceneT=null,bloomA=null,bloomB=null;
 function target(w,h){
  const tex=gl.createTexture(),fb=gl.createFramebuffer();
@@ -586,10 +594,25 @@ function draw(t){
   }
  }
  const az=avatarView?0:t*.17,cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
+ const cubeCy=Math.cos(t*.25),cubeSy=Math.sin(t*.25),cubeCx=Math.cos(t*.17),cubeSx=Math.sin(t*.17);
+ const cubeScale=Math.min(.86,aspect*.8),cubeNX=Math.ceil(Math.cbrt(N)),cubeNY=cubeNX,cubeNZ=Math.ceil(N/(cubeNX*cubeNY));
+ if(vm===0){
+  const corners=[[-.65,-.65,-.65],[.65,-.65,-.65],[.65,.65,-.65],[-.65,.65,-.65],[-.65,-.65,.65],[.65,-.65,.65],[.65,.65,.65],[-.65,.65,.65]];
+  for(let i=0;i<cubeEdges.length;i++){
+   for(let j=0;j<2;j++){
+    const o=(i*2+j)*3,p=corners[cubeEdges[i][j]];
+    projectCubePoint(p[0],p[1],p[2],cubeCy,cubeSy,cubeCx,cubeSx,cubeScale,aspect,cubeWire,o);
+    cubeWire[o+2]=8.36;
+   }
+  }
+ }
  for(let i=0;i<N;i++){
   const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
   if(vm===0){
-   const z=.24*a+.12*band[b];x=((i%drawCols+.5)/drawCols-.5)*1.75+z*.22;y=(((i/drawCols|0)+.5)/drawRows-.5)*1.5+z*.42;
+   const gx=i%cubeNX,gy=(i/cubeNX|0)%cubeNY,gz=(i/(cubeNX*cubeNY)|0);
+   const qx=(gx/Math.max(1,cubeNX-1)-.5)*1.3,qy=(gy/Math.max(1,cubeNY-1)-.5)*1.3,qz=(gz/Math.max(1,cubeNZ-1)-.5)*1.3;
+   const xr=qx*cubeCy+qz*cubeSy,zr=-qx*cubeSy+qz*cubeCy,yr=qy*cubeCx-zr*cubeSx,zd=qy*cubeSx+zr*cubeCx,perspective=1.8/(2.6-zd);
+   x=xr*perspective*cubeScale*aspect;y=yr*perspective*cubeScale;
   }else if(vm===1){
    const r=(i/6)|0,jitter=(((r*37)%11)/10-.5)*.12;
    x=((b+.5)/6-.5)*1.72+jitter;
@@ -680,6 +703,10 @@ function draw(t){
   gl.useProgram(PL.p);gl.uniform2f(PL.uR,R[0],R[1]);gl.uniform1f(PL.uT,t);gl.uniform1f(PL.uGain,.6+1.4*band[3]);gl.uniform1f(PL.uK,N>1000?.6:1);gl.uniform1f(PL.uB3,band[3]);
   gl.bindBuffer(gl.ARRAY_BUFFER,lB);gl.bufferSubData(gl.ARRAY_BUFFER,0,eA);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
   gl.bindBuffer(gl.ARRAY_BUFFER,sB);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.LINES,0,E*2);gl.disableVertexAttribArray(1);
+  if(vm===0){
+   gl.bindBuffer(gl.ARRAY_BUFFER,cubeB);gl.bufferSubData(gl.ARRAY_BUFFER,0,cubeWire);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+   gl.bindBuffer(gl.ARRAY_BUFFER,cubeSB);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.LINES,0,24);gl.disableVertexAttribArray(1);
+  }
   gl.useProgram(PP.p);gl.uniform2f(PP.uR,R[0],R[1]);gl.uniform1f(PP.uP,1);gl.uniform1f(PP.uPS,Math.max(3,Math.min(36,34*Math.sqrt(32/N)))*R[1]/700);
   gl.bindBuffer(gl.ARRAY_BUFFER,nB);gl.bufferSubData(gl.ARRAY_BUFFER,0,nA);gl.uniform1f(PP.uMode,avatarView?1:0);
   gl.vertexAttribPointer(0,4,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,24,16);gl.drawArrays(gl.POINTS,0,N);gl.disableVertexAttribArray(1);

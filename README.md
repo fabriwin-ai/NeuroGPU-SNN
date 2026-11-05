@@ -13,7 +13,7 @@ An experimental, standalone browser visualization of a self-organizing neural fi
 
 ### Características Clave
 * **Red autoorganizada escalable:** Perfiles de `P1 (32)` a `P9 (50,000)` neuronas, con reducción automática del perfil si el rendimiento cae.
-* **Visualización neural y holográfica:** rejilla 2.5D, bandas con actividad, avatar neural y dos salidas para ilusiones Pepper's Ghost: una figura central para una pantalla tipo vitrina y cuatro figuras orientadas en cruz para una pirámide DIY de cuatro caras. El avatar tiene una superficie texturizada continua, responde al campo y se adapta a la pantalla; la proyección holográfica permite ajustar giro, espejo y tamaño, y usar pantalla completa sobre fondo negro.
+* **Visualización neural y holográfica:** rejilla cúbica 3D con perspectiva y giro continuo, bandas con actividad, avatar neural y dos salidas para ilusiones Pepper's Ghost: una figura central para una pantalla tipo vitrina y cuatro figuras orientadas en cruz para una pirámide DIY de cuatro caras. El avatar tiene una superficie texturizada continua, responde al campo y se adapta a la pantalla; la proyección holográfica permite ajustar giro, espejo y tamaño, y usar pantalla completa sobre fondo negro.
 * **Dinámica de red experimental:** incluye inhibición lateral, aprendizaje cooperativo y una cascada de error/energía `ω → ε`.
 * **Perfiles y rendimiento:** selecciona de 32 a 50 000 neuronas; los perfiles altos pueden reducirse automáticamente si la tasa de fotogramas cae.
 * **Controles de red:** ajusta la mezcla de bandas y los controles disponibles en la interfaz; guarda, exporta e importa topologías desde el navegador.
@@ -28,7 +28,7 @@ La aplicación está contenida en un único documento HTML. JavaScript procesa l
 
 1. Abre [`index.html`](./index.html) en un navegador compatible con WebGL, o habilita GitHub Pages para publicar el documento.
 2. Elige **Demo** para generar una señal sintética, **Archivos** para cargar audio o video, o **Micrófono** y concede permiso para capturar audio.
-3. Selecciona un perfil de neuronas y una vista: rejilla 2.5D, bandas con actividad, avatar en el campo, holograma central o pirámide DIY de cuatro caras.
+3. Selecciona un perfil de neuronas y una vista: rejilla cúbica 3D, bandas con actividad, avatar en el campo, holograma central o pirámide DIY de cuatro caras.
 
 La captura de micrófono normalmente requiere un contexto seguro (`https://` o `localhost`). El acceso a dispositivos y el rendimiento dependen del navegador y del equipo.
 
