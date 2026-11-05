@@ -43,6 +43,7 @@ textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);b
 <button id="mic">Micrófono</button><label class="b">Archivos<input id="file" type="file" accept="audio/*,video/*" multiple hidden></label><button id="demo">Demo</button>
 <select id="selSR" title="Frecuencia de muestreo"><option value="0">SR auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select>
 <select id="selL" title="Entrelazado de capas"><option value="auto">Capas: auto</option><option value="0">Bloques</option><option value="1">Intercalado</option><option value="2">Por banda</option></select>
+<select id="selV" title="Modo visual"><option value="0">Vista: rejilla 2.5D</option><option value="1">Vista: bandas + actividad</option><option value="2">Vista: avatar morfológico</option></select>
 <select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option><option value="25000">P8 · 25 000</option><option value="50000">P9 · 50 000</option></select>
 <span class="pan mut" id="st">Latente — elige una fuente de audio</span>
 </div>
@@ -294,11 +295,12 @@ function play(i){
  st.textContent=`Contenedor: ${it.name} · SR ${(ctx.sampleRate/1000).toFixed(1)} kHz`+(micOn?' + micrófono':'');
 }
 // ---------- Red autoorganizada escalable (arrays tipados + rejilla espacial)
-let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB;
+let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB,drawCols=1,drawRows=1;
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
 const PROF=[32,128,512,1000,2500,5000,10000,25000,50000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
 function build(n){
  N=n;E=2*n;sp=Math.sqrt(6/N);cnt=null;
+ drawCols=Math.ceil(Math.sqrt(N*1.6));drawRows=Math.ceil(N/drawCols);
  [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);CS=new Float32Array(N);SN=new Float32Array(N);EB=new Uint8Array(E);
  BD=new Uint8Array(N);EI=new Int32Array(E);EJ=new Int32Array(E);cell=new Int32Array(N);ord=new Int32Array(N);lay=new Int8Array(N);
  const cols=Math.ceil(Math.sqrt(N*1.6)),rows=Math.ceil(N/cols);
@@ -356,9 +358,24 @@ function step(dt){
   if(best>=0){EI[wk]=i;EJ[wk]=best;EW[wk]=.12;EB[wk]=(BD[i]+BD[best]+1)>>1}}
 }
 function draw(t){
- for(let i=0;i<N;i++){const o=i*4;nA[o]=X[i];nA[o+1]=Y[i];nA[o+2]=A[i];nA[o+3]=BD[i]}
- for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*EB[k];
-  eA[o]=X[i];eA[o+1]=Y[i];eA[o+2]=uw;eA[o+3]=X[j];eA[o+4]=Y[j];eA[o+5]=uw}
+ const vm=+$('selV').value,bandRows=Math.ceil(N/6);
+ for(let i=0;i<N;i++){
+  const o=i*4,b=BD[i],a=A[i];let x=X[i],y=Y[i];
+  if(vm===0){
+   const z=.24*a+.12*band[b];x=((i%drawCols+.5)/drawCols-.5)*1.75+z*.22;y=(((i/drawCols|0)+.5)/drawRows-.5)*1.5+z*.42;
+  }else if(vm===1){
+   const r=(i/6)|0,jitter=(((r*37)%11)/10-.5)*.12;
+   x=((b+.5)/6-.5)*1.72+jitter;
+   y=-.82+(r+.5)/bandRows*1.5*(.4+.6*band[b])+.16*a;
+  }else{
+   const u=(i+.5)/N,ang=i*2.39996323,r=.72*Math.sqrt(u),sn=Math.sin(ang),cs=Math.cos(ang);
+   const morph=.055*Math.sin(ang*5+t*.8+b)*(.3+band[b])+.08*a;
+   x=(r+morph)*cs*(.78+.22*(sn+1)*.5);y=(r+morph)*sn*.86;
+  }
+  nA[o]=x;nA[o+1]=y;nA[o+2]=a;nA[o+3]=b;
+ }
+ for(let k=0;k<E;k++){const i=EI[k],j=EJ[k],o=k*6,uw=EW[k]+2*EB[k],oi=i*4,oj=j*4;
+  eA[o]=nA[oi];eA[o+1]=nA[oi+1];eA[o+2]=uw;eA[o+3]=nA[oj];eA[o+4]=nA[oj+1];eA[o+5]=uw}
  const R=[cv.width,cv.height];
  gl.disable(gl.BLEND);gl.useProgram(PB.p);gl.uniform2f(PB.uR,R[0],R[1]);gl.uniform1f(PB.uT,t);gl.uniform1f(PB.uCoh,Rco);gl.uniform1fv(PB.uB,band);
  gl.bindBuffer(gl.ARRAY_BUFFER,bgB);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,3);
@@ -375,7 +392,7 @@ build(+$('selP').value);
 const b64=u=>{let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
 const enc=ta=>b64(new Uint8Array(ta.buffer,ta.byteOffset,ta.byteLength));
 const dec=(t,T)=>{const s=atob(t),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new T(u.buffer,0,u.length/T.BYTES_PER_ELEMENT)};
-const TCTL=['gEnt','gOn','gCoh','gOut','selL','selLOD'],LS='omega.topology.v1',q8=v=>Math.max(0,Math.min(255,Math.round(v)));
+const TCTL=['gEnt','gOn','gCoh','gOut','selL','selLOD','selV'],LS='omega.topology.v1',q8=v=>Math.max(0,Math.min(255,Math.round(v)));
 function topoJSON(){
  const w8=new Uint8Array(N),ew=new Uint8Array(E),ei=new Uint16Array(E),ej=new Uint16Array(E);
  for(let i=0;i<N;i++)w8[i]=q8((W0[i]-.8)/.8*255);
