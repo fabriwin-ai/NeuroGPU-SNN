@@ -43,7 +43,7 @@ textarea{width:100%;box-sizing:border-box;background:#00000055;color:var(--fg);b
 <button id="mic">Micrófono</button><label class="b">Archivos<input id="file" type="file" accept="audio/*,video/*" multiple hidden></label><button id="demo">Demo</button>
 <select id="selSR" title="Frecuencia de muestreo"><option value="0">SR auto</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select>
 <select id="selL" title="Entrelazado de capas"><option value="auto">Capas: auto</option><option value="0">Bloques</option><option value="1">Intercalado</option><option value="2">Por banda</option></select>
-<select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option></select>
+<select id="selP" title="Perfil de neuronas"><option value="32">P1 · 32</option><option value="128">P2 · 128</option><option value="512" selected>P3 · 512</option><option value="1000">P4 · 1 000</option><option value="2500">P5 · 2 500</option><option value="5000">P6 · 5 000</option><option value="10000">P7 · 10 000</option><option value="25000">P8 · 25 000</option><option value="50000">P9 · 50 000</option></select>
 <span class="pan mut" id="st">Latente — elige una fuente de audio</span>
 </div>
 <div class="hud bot"><div class="q" id="q"></div><div class="pan" id="meters"></div><details class="pan" id="mxp"><summary>Matriz de bandas · mezcla · salida</summary>
@@ -296,7 +296,7 @@ function play(i){
 // ---------- Red autoorganizada escalable (arrays tipados + rejilla espacial)
 let N=0,E=0,sp=1,X,Y,VX,VY,PH,W0,A,BD,FX,FY,EI,EJ,EW,nA,eA,cell,ord,fp,cnt=null,gx=1,gy=1,Rc=1,CS,SN,EB;
 let Rco=0,psi=0,rewAcc=0,ft=.016,slow=0;
-const PROF=[32,128,512,1000,2500,5000,10000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
+const PROF=[32,128,512,1000,2500,5000,10000,25000,50000],OFX=[0,1,-1,0,1],OFY=[0,0,1,1,1];
 function build(n){
  N=n;E=2*n;sp=Math.sqrt(6/N);cnt=null;
  [X,Y,VX,VY,PH,W0,A,FX,FY,EW]=Array.from({length:10},()=>new Float32Array(N));EW=new Float32Array(E);CS=new Float32Array(N);SN=new Float32Array(N);EB=new Uint8Array(E);
@@ -493,11 +493,11 @@ function num(t,txt){const m=txt.match(/(\d+(?:\.\d+)?)\s*(%|khz|k\b)?/);if(m)ret
  return got?{n:tot+cur,u:''}:null}
 const norm=s=>s.replace(/(\d),(\d)/g,'$1.$2').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[¿?¡!]|(?<!\d)\.|\.(?!\d)/g,' ')
  .replace(/por ciento/g,'%').replace(/\b(por favor|porfa|quiero que|quisiera|podrias|puedes|puede|me gustaria|please|could you|can you|would you)\b/g,' ')
- .replace(/\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)\s+y\s+(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)\b/g,'$1 $2').replace(/\b(?!p[1-7]\b)([a-z]+)(\d)/g,'$1 $2').replace(/\s+/g,' ').trim();
+ .replace(/\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)\s+y\s+(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)\b/g,'$1 $2') .replace(/\b(?!p[1-9]\b)([a-z]+)(\d)/g,'$1 $2').replace(/\s+/g,' ').trim();
 function plan(c){
  const t=c.split(' ').map(fix);let verb=findK(VERB,t),obj=findK(OBJ,t),q=findK(QUAL,t),nm=num(t,c),ch=null,query=null;
  const io=findK(IO,t);if(io&&!obj)return{trace:`verb = ${io}; object = topology`,io};
- const pm=t.find(w=>/^p[1-7]$/.test(w));if(pm){obj='profile';nm={n:PROF[+pm[1]-1],u:''}}
+ const pm=t.find(w=>/^p[1-9]$/.test(w));if(pm){obj='profile';nm={n:PROF[+pm[1]-1],u:''}}
  for(const [o,v,ws] of CH)if(ws.some(w=>t.includes(w))){ch={o,v};break}
  if(!obj&&(verb==='ask'||!verb)){query=findK(QONLY,t);if(query&&!verb)verb='ask'}
  if(!obj&&!query&&ch)obj=ch.o;
@@ -524,8 +524,8 @@ function plan(c){
  if(obj==='layers'){let v;if(q==='auto'||verb==='on')v='auto';else if(ch&&ch.o==='layers')v=ch.v;else throw'di: bloques, intercalado, por banda o auto';return{trace,acts:[['layers',v]]}}
  if(obj==='matrix'){let v;if(ch&&ch.o==='matrix')v=ch.v;else if(verb==='off')v='id';else throw'di: identidad, cooperativa, lateral o cascada';return{trace,acts:[['matrix',v]]}}
  if(obj==='profile'){const i=Math.max(0,PROF.indexOf(N));let n;
-  if(q==='max')n=10000;else if(q==='min')n=32;else if(nm&&nm.u!=='%')n=nm.n;else if(verb==='up')n=PROF[Math.min(PROF.length-1,i+1)];else if(verb==='down')n=PROF[Math.max(0,i-1)];
-  else throw'di cuántas neuronas (32…10000) o sube/baja un perfil';return{trace,acts:[['profile',String(n)]]}}
+  if(q==='max')n=50000;else if(q==='min')n=32;else if(nm&&nm.u!=='%')n=nm.n;else if(verb==='up')n=PROF[Math.min(PROF.length-1,i+1)];else if(verb==='down')n=PROF[Math.max(0,i-1)];
+  else throw'di cuántas neuronas (32…50000) o sube/baja un perfil';return{trace,acts:[['profile',String(n)]]}}
  if(obj==='sr'){const L=[44100,48000,96000],i=L.indexOf(near(L,+$('selSR').value||(ctx&&ctx.sampleRate)||48000));let v;
   if(q==='auto'||verb==='off')v='0';else if(nm)v=String(nm.n<1000?nm.n*1000:nm.n);else if(verb==='up')v=String(L[Math.min(2,i+1)]);else if(verb==='down')v=String(L[Math.max(0,i-1)]);
   else throw'di 44.1, 48 o 96 kHz';return{trace,acts:[['sr',v]]}}

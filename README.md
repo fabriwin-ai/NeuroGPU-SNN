@@ -13,7 +13,7 @@ An open-source, bare-metal framework designed for real-time Self-Organizing Neur
 **NeuroGPU-SNN** rompe la dependencia de la nube y los modelos comerciales controlados por las corporaciones tecnológicas. Al mapear y procesar dinámicas celulares y neuronales directamente sobre el silicio local, esta plataforma permite simular, filtrar y corregir bio-señales en tiempo real sin intermediarios industriales.
 
 ### Características Clave
-* **Procesamiento Multibanda Dinámico:** Espectro de resolución adaptativa variable escalado desde `P1 (32)` hasta `P9 (50,000)` bandas funcionales.
+* **Red autoorganizada escalable:** Perfiles de `P1 (32)` a `P9 (50,000)` neuronas, con reducción automática del perfil si el rendimiento cae.
 * **Mecánica Neurobiológica Nativa:** Implementación matemática integrada de **Inhibición Lateral**, sistemas de aprendizaje cooperativo y la cascada de error/energía `ω → ε`.
 * **Procesamiento de Atención Modular (NN LOD):** Niveles de detalle computacional que van desde predicciones y gradientes básicos (LOD 1) hasta optimizaciones iterativas críticas de alta densidad (LOD 3).
 
